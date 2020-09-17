@@ -44,92 +44,65 @@ How did your models from last time perform? In this exercise you have to compare
 - test the performance of the models on the test data (Tips: google the functions "predict()")
 - optional: predictions are never certain, can you identify the uncertainty of the predictions? (e.g. google predictinterval())
 
-```{r}
-# Load test data
-LU_test <- read_csv('LU_test.csv')
-
-token_test <- read_csv('token_test.csv')
-
-demo_test <- read_csv('demo_test.csv')
-
-```
-
 
 ```{r, include = FALSE}
 
-library(pacman)
 pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret)
 
 ## Clean up function, included to inspire you
 
-CleanUpData <- function(Demo, LU, Word) {
-  Speech <- merge(LU, Word) %>%
-    rename(ID = SUBJ) %>%
-    mutate(VISIT = as.numeric(str_extract(VISIT, "\\d")),
-           ID = gsub("\\.", "", ID)) %>%
-    dplyr::select(ID,
-                  VISIT,
-                  MOT_MLU,
-                  CHI_MLU,
-                  types_MOT,
-                  types_CHI,
-                  tokens_MOT,
-                  tokens_CHI)
+CleanUpData <- function(Demo,LU,Word){
+  
+  Speech <- merge(LU, Word) %>% 
+    rename(
+      Child.ID = SUBJ, 
+      Visit=VISIT) %>%
+    mutate(
+      Visit = as.numeric(str_extract(Visit, "\\d")),
+      Child.ID = gsub("\\.","", Child.ID)
+      ) %>%
+    dplyr::select(
+      Child.ID, Visit, MOT_MLU, CHI_MLU, types_MOT, types_CHI, tokens_MOT, tokens_CHI
+    )
   
   Demo <- Demo %>%
     dplyr::select(
-      Child.ID,
-      Visit,
-      Ethnicity,
-      Diagnosis,
-      Gender,
-      Age,
-      ADOS,
-      MullenRaw,
-      ExpressiveLangRaw,
-      Socialization
-    ) %>% rename(ID = Child.ID, VISIT = Visit) %>% 
-    mutate(ID = gsub("\\.", "", ID))
-  
-  Data = merge(Demo, Speech, all = T)
-  
-  Data1 = Data %>%
-    subset(VISIT == "1") %>%
-    dplyr::select(ID, ADOS, ExpressiveLangRaw, MullenRaw, Socialization) %>%
-    rename(
-      ADOS1 = ADOS,
-      vIQ1 = ExpressiveLangRaw,
-      nvIQ1 = MullenRaw,
-      Socialization1 = Socialization
-    )
-  
-  Data = merge(Data, Data1, all = T) %>%
+      Child.ID, Visit, Ethnicity, Diagnosis, Gender, Age, ADOS, MullenRaw, ExpressiveLangRaw, Socialization
+    ) %>%
     mutate(
-      ID = as.numeric(as.factor(as.character(ID))),
-      VISIT = as.numeric(as.character(VISIT)),
-      Gender = recode(Gender,
-                      "1" = "M",
-                      "2" = "F"),
-      Diagnosis = recode(Diagnosis,
-                         "A"  = "ASD",
-                         "B"  = "TD")
+      Child.ID = gsub("\\.","", Child.ID)
     )
+    
+  Data=merge(Demo,Speech,all=T)
   
+  Data1= Data %>% 
+     subset(Visit=="1") %>% 
+     dplyr::select(Child.ID, ADOS, ExpressiveLangRaw, MullenRaw, Socialization) %>%
+     rename(Ados1 = ADOS, 
+            verbalIQ1 = ExpressiveLangRaw, 
+            nonVerbalIQ1 = MullenRaw,
+            Socialization1 = Socialization) 
+  
+  Data=merge(Data, Data1, all=T) %>%
+    mutate(
+      Child.ID = as.numeric(as.factor(as.character(Child.ID))),
+      Visit = as.numeric(as.character(Visit)),
+      Gender = recode(Gender, 
+         "1" = "M",
+         "2" = "F"),
+      Diagnosis = recode(Diagnosis,
+         "A"  = "ASD",
+         "B"  = "TD")
+    )
+
   return(Data)
 }
 
-df_test <- CleanUpData(demo_test, LU_test, token_test)
-
 # Load training Data
-
-df_train <- read_csv('cleanedData.csv')
+df_train <- read_csv()
 
 #- recreate the models you chose last time (just write the code again and apply it to Train Data)
 
-m <- lmer(CHI_MLU ~
-            Diagnosis * VISIT + vIQ1 +
-            (1 + VISIT | ID),
-          df, REML = F)
 
 #- calculate performance of the model on the training data: root mean square error is a good measure. (Tip: google the function rmse())
 
