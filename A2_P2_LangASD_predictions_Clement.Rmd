@@ -47,7 +47,7 @@ How did your models from last time perform? In this exercise you have to compare
 
 ```{r, include = FALSE}
 
-pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret)
+pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret, tidyverse)
 
 ## Load data
 Demo <- read_csv("demo_test.csv")
@@ -72,12 +72,9 @@ CleanUpData <- function(Demo, LU, Word) {
                   tokens_CHI)
   
   Demo <- Demo %>%
-    rename(
-      ID = Child.ID,
-      VISIT = Visit) %>%
     dplyr::select(
-      ID,
-      VISIT,
+      Child.ID,
+      Visit,
       Ethnicity,
       Diagnosis,
       Gender,
@@ -86,7 +83,7 @@ CleanUpData <- function(Demo, LU, Word) {
       MullenRaw,
       ExpressiveLangRaw,
       Socialization
-    ) %>%
+    ) %>% rename(ID = Child.ID, VISIT = Visit) %>% 
     mutate(ID = gsub("\\.", "", ID))
   
   Data = merge(Demo, Speech, all = T)
@@ -115,19 +112,16 @@ CleanUpData <- function(Demo, LU, Word) {
   
   return(Data)
 }
-df <- CleanUpData(Demo,Word,LU)
-df_train <- read_csv("CleanedData.csv")
+clean_test_df <- CleanUpData(Demo, LU, Word)
 
-## NA: remove as few missing values as possible. If you remove all you will end up with almost nothing. 
 # Load training Data
 
 
 #- recreate the models you chose last time (just write the code again and apply it to Train Data)
-m <- lmer(CHI_MLU~
-            Diagnosis * VISIT + vIQ1 + (1+VISIT|ID), df_train, REML = F)
+
 
 #- calculate performance of the model on the training data: root mean square error is a good measure. (Tip: google the function rmse())
-rmse(m)
+
 
 
 #- create the test dataset (apply the code from assignment 1 or my function to clean up the 3 test datasets)
