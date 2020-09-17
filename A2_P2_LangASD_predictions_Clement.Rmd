@@ -44,23 +44,18 @@ How did your models from last time perform? In this exercise you have to compare
 - test the performance of the models on the test data (Tips: google the functions "predict()")
 - optional: predictions are never certain, can you identify the uncertainty of the predictions? (e.g. google predictinterval())
 
-```{r}
-# Load test data
-LU_test <- read_csv('LU_test.csv')
-
-token_test <- read_csv('token_test.csv')
-
-demo_test <- read_csv('demo_test.csv')
-
-```
-
 
 ```{r, include = FALSE}
 
-library(pacman)
-pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret)
+pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret, tidyverse)
+
+## Load data
+Demo <- read_csv("demo_test.csv")
+LU <- read_csv("LU_test.csv")
+Word <- read_csv("token_test.csv")
 
 ## Clean up function, included to inspire you
+
 
 CleanUpData <- function(Demo, LU, Word) {
   Speech <- merge(LU, Word) %>%
@@ -117,19 +112,13 @@ CleanUpData <- function(Demo, LU, Word) {
   
   return(Data)
 }
-
-df_test <- CleanUpData(demo_test, LU_test, token_test)
+clean_test_df <- CleanUpData(Demo, LU, Word)
 
 # Load training Data
 
-df_train <- read_csv('cleanedData.csv')
 
 #- recreate the models you chose last time (just write the code again and apply it to Train Data)
 
-m <- lmer(CHI_MLU ~
-            Diagnosis * VISIT + vIQ1 +
-            (1 + VISIT | ID),
-          df, REML = F)
 
 #- calculate performance of the model on the training data: root mean square error is a good measure. (Tip: google the function rmse())
 
