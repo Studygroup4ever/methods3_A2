@@ -57,48 +57,59 @@ Word <- read_csv("token_test.csv")
 ## Clean up function, included to inspire you
 
 
-CleanUpData <- function(Demo,LU,Word){
-  
-  Speech <- merge(LU, Word) %>% 
+CleanUpData <- function(Demo, LU, Word) {
+  Speech <- merge(LU, Word) %>%
     rename(ID = SUBJ) %>%
-    mutate(
-      VISIT = as.numeric(str_extract(VISIT, "\\d")),
-      ID = gsub("\\.","", ID)
-      ) %>%
-    dplyr::select(
-      ID, VISIT, MOT_MLU, CHI_MLU, types_MOT, types_CHI, tokens_MOT, tokens_CHI
-    )
+    mutate(VISIT = as.numeric(str_extract(VISIT, "\\d")),
+           ID = gsub("\\.", "", ID)) %>%
+    dplyr::select(ID,
+                  VISIT,
+                  MOT_MLU,
+                  CHI_MLU,
+                  types_MOT,
+                  types_CHI,
+                  tokens_MOT,
+                  tokens_CHI)
   
   Demo <- Demo %>%
     dplyr::select(
-      ID, VISIT, Ethnicity, Diagnosis, Gender, Age, ADOS, MullenRaw, ExpressiveLangRaw, Socialization
-    ) %>%
-    mutate(
-      ID = gsub("\\.","", ID)
+      Child.ID,
+      Visit,
+      Ethnicity,
+      Diagnosis,
+      Gender,
+      Age,
+      ADOS,
+      MullenRaw,
+      ExpressiveLangRaw,
+      Socialization
+    ) %>% rename(ID = Child.ID, VISIT = Visit) %>% 
+    mutate(ID = gsub("\\.", "", ID))
+  
+  Data = merge(Demo, Speech, all = T)
+  
+  Data1 = Data %>%
+    subset(VISIT == "1") %>%
+    dplyr::select(ID, ADOS, ExpressiveLangRaw, MullenRaw, Socialization) %>%
+    rename(
+      ADOS1 = ADOS,
+      vIQ1 = ExpressiveLangRaw,
+      nvIQ1 = MullenRaw,
+      Socialization1 = Socialization
     )
-    
-  Data=merge(Demo,Speech,all=T)
   
-  Data1= Data %>% 
-     subset(Visit=="1") %>% 
-     dplyr::select(ID, ADOS, ExpressiveLangRaw, MullenRaw, Socialization) %>%
-     rename(ADOS1 = ADOS, 
-            vIQ1 = ExpressiveLangRaw, 
-            nVIQ1 = MullenRaw,
-            Socialization1 = Socialization) #new name - old name
-  
-  Data=merge(Data, Data1, all=T) %>%
+  Data = merge(Data, Data1, all = T) %>%
     mutate(
       ID = as.numeric(as.factor(as.character(ID))),
       VISIT = as.numeric(as.character(VISIT)),
-      Gender = recode(Gender, 
-         "1" = "M",
-         "2" = "F"),
+      Gender = recode(Gender,
+                      "1" = "M",
+                      "2" = "F"),
       Diagnosis = recode(Diagnosis,
-         "A"  = "ASD",
-         "B"  = "TD")
+                         "A"  = "ASD",
+                         "B"  = "TD")
     )
-
+  
   return(Data)
 }
 clean_test_df <- CleanUpData(Demo, LU, Word)
