@@ -216,7 +216,7 @@ sub_df_train1 <- sub_df_train %>%
 
 #Classifying the number of folds
 k = 6
-folds <- createFolds(unique(sub_df_train1$ID, k = k, list = TRUE, returnTrain = FALSE))
+folds <- createFolds(unique(sub_df_train1$ID), k = k, list = TRUE, returnTrain = FALSE)
 
 #Specifying where I want the results
 trainRMSE <- rep(NA, k)
@@ -235,7 +235,8 @@ for (fold in folds){
   i = i+1
 }
 
-
+trainRMSE
+testRMSE
 #- Report the results and comment on them. 
 
 #- Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
