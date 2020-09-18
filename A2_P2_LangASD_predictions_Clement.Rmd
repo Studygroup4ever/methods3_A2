@@ -47,7 +47,7 @@ How did your models from last time perform? In this exercise you have to compare
 
 ```{r, include = FALSE}
 
-pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret, tidyverse, lme4)
+pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret, tidyverse, lme4, caret)
 
 ## Load data
 Demo <- read_csv("demo_test.csv")
@@ -196,7 +196,6 @@ In this exercise you have to use cross-validation to calculate the predictive er
 - Use cross-validation to compare your model from last week with the basic model (Child MLU as a function of Time and Diagnosis, and don't forget the random effects!)
 - (Tips): google the function "createFolds";  loop through each fold, train both models on the other folds and test them on the fold)
 
-
 - Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
 
 - Bonus Question 1: What is the effect of changing the number of folds? Can you plot RMSE as a function of number of folds?
@@ -206,7 +205,36 @@ In this exercise you have to use cross-validation to calculate the predictive er
 ```{r}
 #- Create the basic model of ChildMLU as a function of Time and Diagnosis (don't forget the random effects!).
 
+basic_model <- lmer(CHI_MLU ~ Diagnosis*VISIT + (1+VISIT|ID), df_train, REML = F)
+
 #- Make a cross-validated version of the model. (Tips: google the function "createFolds";  loop through each fold, train a model on the other folds and test it on the fold)
+
+#Making subset of the data that matches the predictors from the basic model
+sub_df_train1 <- sub_df_train %>% 
+  dplyr::select(c(ID, CHI_MLU, VISIT, Diagnosis)) %>%
+  na.omit()
+
+#Classifying the number of folds
+k = 6
+folds <- createFolds(unique(sub_df_train1$ID, k = k, list = TRUE, returnTrain = FALSE))
+
+#Specifying where I want the results
+trainRMSE <- rep(NA, k)
+testRMSE <- rep(NA, k)
+
+#Making the loop
+i = 1
+for (fold in folds){
+  train = subset(sub_df_train1, !(ID %in% fold))
+  test = subset(sub_df_train1, ID %in% fold)
+  model = lmer(CHI_MLU ~ Diagnosis*VISIT + (1+VISIT|ID), train)
+  test$prediction = predict(model, test, allow.new.levels = TRUE)
+  train$prediction = fitted(model)
+  trainRMSE[i] = rmse(train$CHI_MLU, fitted(model))
+  testRMSE[i] = rmse(test$CHI_MLU, test$prediction)
+  i = i+1
+}
+
 
 #- Report the results and comment on them. 
 
