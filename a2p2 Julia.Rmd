@@ -50,73 +50,89 @@ How did your models from last time perform? In this exercise you have to compare
 install.packages("pacman")
 pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret)
 
-Demo <- read_csv("demo_test.csv")
-LU <- read_csv("LU_test.csv")
-Word <- read_csv("token_test.csv")
-## Clean up function, included to inspire you
-
-CleanUpData <- function(Demo,LU,Word){
-  
-  Speech <- merge(LU, Word) %>% 
-    rename(
-      SUBJ = ID, Child.ID = ID) %>%
-    mutate(
-      VISIT = as.numeric(str_extract(VISIT, "\\d")),
-      ID = gsub("\\.","", ID)
-      ) %>%
-    dplyr::select(
-      ID, VISIT, MOT_MLU, CHI_MLU, types_MOT, types_CHI, tokens_MOT, tokens_CHI
-    )
+CleanUpData <- function(Demo, LU, Word) {
+  Speech <- merge(LU, Word) %>%
+    rename(ID = SUBJ) %>%
+    mutate(VISIT = as.numeric(str_extract(VISIT, "\\d")),
+           ID = gsub("\\.", "", ID)) %>%
+    dplyr::select(ID,
+                  VISIT,
+                  MOT_MLU,
+                  CHI_MLU,
+                  types_MOT,
+                  types_CHI,
+                  tokens_MOT,
+                  tokens_CHI)
   
   Demo <- Demo %>%
     dplyr::select(
-      ID, VISIT, Ethnicity, Diagnosis, Gender, Age, ADOS, MullenRaw, ExpressiveLangRaw, Socialization
-    ) %>%
-    mutate(
-      ID = gsub("\\.","", ID)
+      Child.ID,
+      Visit,
+      Ethnicity,
+      Diagnosis,
+      Gender,
+      Age,
+      ADOS,
+      MullenRaw,
+      ExpressiveLangRaw,
+      Socialization
+    ) %>% rename(ID = Child.ID, VISIT = Visit) %>% 
+    mutate(ID = gsub("\\.", "", ID))
+  
+  Data = merge(Demo, Speech, all = T)
+  
+  Data1 = Data %>%
+    subset(VISIT == "1") %>%
+    dplyr::select(ID, ADOS, ExpressiveLangRaw, MullenRaw, Socialization) %>%
+    rename(
+      ADOS1 = ADOS,
+      vIQ1 = ExpressiveLangRaw,
+      nvIQ1 = MullenRaw,
+      Socialization1 = Socialization
     )
-    
-  Data=merge(Demo,Speech,all=T)
   
-  Data1= Data %>% 
-     subset(VISIT=="1") %>% 
-     dplyr::select(ID, ADOS, ExpressiveLangRaw, MullenRaw, Socialization) %>%
-     rename(ADOS, 
-            vIQ1 = ExpressiveLangRaw, 
-            nvIQ1 = MullenRaw,
-            Socialization1 = Socialization) 
-  
-  Data=merge(Data, Data1, all=T) %>%
+  Data = merge(Data, Data1, all = T) %>%
     mutate(
       ID = as.numeric(as.factor(as.character(ID))),
       VISIT = as.numeric(as.character(VISIT)),
-      Gender = recode(Gender, 
-         "1" = "M",
-         "2" = "F"),
+      Gender = recode(Gender,
+                      "1" = "M",
+                      "2" = "F"),
       Diagnosis = recode(Diagnosis,
-         "A"  = "ASD",
-         "B"  = "TD")
+                         "A"  = "ASD",
+                         "B"  = "TD")
     )
-
+  
   return(Data)
 }
-Cleandata <- CleanUpData(Demo, LU, Word)
+
+df_test <- CleanUpData(Demo, LU, Word)
 
 # Load training Data
 
+df_train <- read_csv('cleanedData.csv')
 
 #- recreate the models you chose last time (just write the code again and apply it to Train Data)
+
+m <- lmer(CHI_MLU ~
+            Diagnosis * VISIT + vIQ1 +
+            (1 + VISIT | ID),
+          df_train, REML = F)
+
+gmc <- lmer(CHI_MLU ~ Diagnosis*I(VISIT)^2+vIQ1+(1|ID),df_train, REML=F)
 
 
 #- calculate performance of the model on the training data: root mean square error is a good measure. (Tip: google the function rmse())
 
-
+predictions <- predict(m, df_test)
+rmse(df_test$CHI_MLU, predictions)
 
 #- create the test dataset (apply the code from assignment 1 or my function to clean up the 3 test datasets)
 # Test data
 
 #- test the performance of the models on the test data (Tips: google the functions "predict()")
-
+predictions <- predict(m, df_test)
+rmse(df_test$CHI_MLU, predictions)
 
 #- optional: predictions are never certain, can you identify the uncertainty of the predictions? (e.g. google predictinterval())
 
