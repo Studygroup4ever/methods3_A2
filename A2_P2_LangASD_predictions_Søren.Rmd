@@ -58,7 +58,7 @@ demo_test <- read_csv('demo_test.csv')
 ```{r, include = FALSE}
 # Loading packages
 library(pacman)
-pacman::p_load(readr, dplyr, stringr, lmerTest, Metrics, caret, merTools)
+pacman::p_load(readr, dplyr, stringr, lmerTest, Metrics, caret, merTools, lme4)
 
 ## Clean up function, included to inspire you
 CleanUpData <- function(Demo, LU, Word) {
