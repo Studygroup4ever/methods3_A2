@@ -47,7 +47,7 @@ How did your models from last time perform? In this exercise you have to compare
 
 ```{r, include = FALSE}
 
-pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret, tidyverse, lme4, caret)
+pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret, tidyverse, lme4, caret, simr)
 
 ## Load data
 Demo <- read_csv("demo_test.csv")
@@ -278,4 +278,53 @@ Then try to find the best possible predictive model of ChildMLU, that is, the on
 
 ### OPTIONAL: Exercise 5): Using Lasso for model selection
 Welcome to the last secret exercise. If you have already solved the previous exercises, and still there's not enough for you, you can expand your expertise by learning about penalizations. Check out this tutorial: http://machinelearningmastery.com/penalized-regression-in-r/ and make sure to google what penalization is, with a focus on L1 and L2-norms. Then try them on your data!
+
+
+
+```{r}
+#RUNNING SOME POWER CALCULATIONS FOR FUN###
+cleanedData$Diagnosis <- as.character(cleanedData$Diagnosis)
+
+#Making subset of dataset only including the variables from the model
+Data <- cleanedData %>%
+  dplyr::select(c(ID, VISIT, types_CHI, Diagnosis)) %>%
+  na.omit()
+
+str(Data)
+
+model_ex <- lme4::lmer(types_CHI ~ VISIT + Diagnosis + (1+VISIT|ID), data = Data, REML = F)
+summary(model_ex)
+
+powerV <- powerSim(model_ex, fixed("VISIT"), nsim = 50)
+powerD <- powerSim(model_ex, fixed("Diagnosis"), nsim = 50)
+
+?powerSim
+
+powerV
+"-----"
+powerD
+
+#Minimum effect size (basically changing the effect size to what would be minimally required to get, in order to be interesting. I.e. it's an arbitrary number which we set in order not to waste our time)
+fixef(model_ex)["VISIT"] <- 10
+fixef(model_ex)["DiagnosisTD"] <- 30
+
+
+powercurveV <- powerCurve(model_ex, fixed("VISIT"), along = "ID", nsim = 50)
+powercurveD <- powerCurve(model_ex, fixed("Diagnosis"), along = "ID", nsim = 50)
+
+plot(powercurveV)
+plot(powercurveD) #It seems that this data will not get above the wanted Power limit (80%)
+
+#In that case we can try to extend the number of participants we have, to see how many we will need to get the required power
+
+#Extending the number of IDs to 120
+moded_ex2 <- extend(model_ex, along = "ID", n = 500)
+
+powercurveD2 <- powerCurve(moded_ex2, fixed("Diagnosis"), along = "ID", nsim = 50)
+
+plot(powercurveD2) #Seems like we would need 100-110 participants to be certain to have a power of more that 80% (to find an effect size of 30, as specified before)
+
+#How many participants do we have? 
+participants_unique <- unique(cleanedData$ID)
+```
 
