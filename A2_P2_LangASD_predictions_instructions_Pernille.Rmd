@@ -256,9 +256,224 @@ Another way to reduce the bad surprises when testing a model on new data is to p
 
 Re-create a selection of possible models explaining ChildMLU (the ones you tested for exercise 2, but now trained on the full dataset and not cross-validated).
 
+```{r}
+# THE TWO DATASETS
+df_train <- read_csv("CleanedData.csv")
+
+df_test <- CleanUpData(Demo, LU, Word)
+
+# Testing set
+unique(df_test$ID) # Has 6 ID's. We want to add 66 to it to merge them with the other one.
+
+# Adding 66
+df_test$ID <- df_test$ID+66
+
+# Merging
+df <- merge(df_train,df, all = TRUE)
+
+## MAKING SOME MODELS AND USING THE FUNCTION ON THEM
+m1 <- CHI_MLU ~ Diagnosis + VISIT + vIQ1 + (1 + VISIT | ID)
+
+# Some other models + growth curve models
+m2 <- CHI_MLU ~ Diagnosis * VISIT + vIQ1 + (1 + VISIT | ID)
+
+gcm1 <- CHI_MLU ~ I(VISIT)^2 + Diagnosis + vIQ1 + (1 | ID)
+
+gcm2 <- CHI_MLU ~ I(VISIT)^2 * Diagnosis + vIQ1 + (1 | ID)
+
+gcm3 <- CHI_MLU ~ I(VISIT)^2 * Diagnosis + vIQ1 + (1 + I(VISIT)^2 | ID)
+```
+
+
+```{r}
+
+#We now want a subset with only the desired variables, which are: ID, CHI_MLU, VISIT, Diagnosis, vIQ1 and then we want to omit NA's:
+
+df <-
+  df %>% 
+
+  dplyr::select(c(ID, CHI_MLU, VISIT, Diagnosis, vIQ1)) %>% #Is there a difference of not putting the c() when using select(?) Nope, doesn't look like it
+  
+  na.omit()
+
+# Checking it
+is.na(df)
+
+```
+
+
+```{r}
+# TRAIN THE MODELS ON THE FULL DF
+m1 <- lmer(CHI_MLU ~ Diagnosis + VISIT + vIQ1 + (1 + VISIT | ID), df, REML = F) # DOESN'T CONVERGE
+
+m2 <- lmer(CHI_MLU ~ Diagnosis * VISIT + vIQ1 + (1 | ID), df, REML = F)
+
+gcm1 <- lmer(CHI_MLU ~ Diagnosis + I(VISIT)^2 + vIQ1 + (1 | ID), df, REML = F)
+
+gcm2 <- lmer(CHI_MLU ~ Diagnosis * I(VISIT)^2 + vIQ1 + (1 | ID), df, REML = F)
+
+gcm3 <- lmer(CHI_MLU ~ I(VISIT)^2 * Diagnosis + vIQ1 + (1 + I(VISIT)^2 | ID), df, REML = F) # DOESN'T CONVERGE
+
+
+```
+
+
 Then try to find the best possible predictive model of ChildMLU, that is, the one that produces the lowest information criterion.
+```{r}
+
+models <- c(m1, m2, gcm1, gcm2, gcm3)
+
+names <- c('m1', 'm2', 'gcm1', 'gcm2', 'gcm3')
+
+AIC_df <- matrix(0, ncol = 2, nrow = 5) %>% data.frame()
+
+i = 1
+
+for (model in models) {
+  AIC_df[i, 1] <- names[i]
+  AIC_df[i, 2] <- AIC(model)
+  i = i + 1
+}
+
+colnames(AIC_df)[1] <-
+  'model_names' # Put model_names as name of the first column
+colnames(AIC_df)[2] <-
+  'AIC' # Put AIC
+
+AIC_df #gm3 has the lowest AIC, but didn't converge
+
+```
 
 - Bonus question for the optional exercise: are information criteria correlated with cross-validated RMSE? That is, if you take AIC for Model 1, Model 2 and Model 3, do they co-vary with their cross-validated RMSE?
+
+# TO FIND THE RMSE, I NEED TO SPECIFY THE FOLDING FUNCTION - NB - in other doc it is called sub_df, here just df
+```{r}
+
+folding <- function(syntax){ # Defining function called "folding"
+  
+  k = 6 # Number of folds in k-folds cross-validation
+  
+  folds <- createFolds(unique(df$ID), k = k, list = TRUE, returnTrain = FALSE)
+  
+  trainRMSE <- rep(NA, k) # Save RootMeanSquared (measure of how far off the model is) for each fold/each time we do cross-validation on the train 
+  testRMSE <- rep(NA, k) # Save RootMeanSquared (measure of how far off the model is) for each fold/each time we do cross-validation on the test set
+
+  i = 1
+  for (fold in folds) {
+    train = subset(df, !(ID %in% fold)) # Take everything but ID in this fold ? take 5/6 of the data
+    
+    test = subset(df,(ID %in% fold))
+    
+    model = lmer(syntax, train)
+    
+    test$prediction = predict(model, test, allow.new.levels= TRUE)
+    
+    train$prediction = fitted(model) #same as predict()?
+    
+    trainRMSE[i] = rmse(train$CHI_MLU, train$prediction) #prøv at erstat med fitted(model) hvis det ikke virker
+    
+    testRMSE[i] = rmse(test$CHI_MLU, test$prediction) 
+    
+    i = i + 1
+  }
+return(c(trainRMSE, testRMSE))
+}
+
+```
+
+# Making dataframe with RMSE's from other document "Pernilles notes and guide...":
+```{r}
+
+models <- c(m1, m2, gcm1, gcm2, gcm3)
+
+names <- c('m1', 'm2', 'gcm1', 'gcm2', 'gcm3')
+
+obj <- matrix(0, ncol = 13, nrow = 5) %>% data.frame()
+
+i = 1
+
+for (model in models) {
+  obj[i, 1] <- names[i]
+  obj[i, 2:13] <- folding(model)
+  i = i + 1
+}
+
+for (i in 2:7) {
+  colnames(obj)[i] <-
+    paste("Train_Fold_", i - 1) 
+  colnames(obj)[i + 6] <- paste("Test_Fold_", i - 1) 
+}
+
+colnames(obj)[1] <-
+  'model_names' 
+
+obj #LOTS OF CONVERGENCE ISSUES
+
+```
+
+# NOW, WE CAN ALSO MAKE A DATAFRAME WITH THE AVERAGE OF THE RMSE: 
+```{r}
+# Splitting it up in test and train, because I want to find the average RMSE of the two
+trainFoldsRmse <- obj %>% 
+  dplyr::select(2:7) # Not choosing the names on purpose here, because rowMeans() can't be applied unless all is numeric
+
+testFoldsRmse <- obj %>% 
+  dplyr::select(8:13) # Same logic as above^
+
+# I now want to find average of each row and put it in a new dataframe
+
+names <- c('m1', 'm2', 'gcm1', 'gcm2', 'gcm3') # Calling the model names again to make sure there here
+
+obj1 <- matrix(0, ncol = 3, nrow = 5) %>% data.frame()  #put 0 in all the cells
+
+# Changing headers
+colnames(obj1)[1] <- 'model_names'
+colnames(obj1)[2] <- 'Train_RMSE_avg'
+colnames(obj1)[3] <- 'Test_RMSE_avg'
+
+# Filling column 1 with list of names
+obj1[,1] <- names
+
+
+
+# So now, I want to take the rowMeans and put them in the right place.
+
+# FOR LOOP FOR TRAIN
+i=1
+
+for (model in models) {
+  obj1[i,2] <- rowMeans(trainFoldsRmse[i,])
+  i = i + 1 
+}
+
+# FOR LOOP FOR TEST
+i=1
+
+for (model in models) {
+  obj1[i,3] <- rowMeans(testFoldsRmse[i,])
+  i = i + 1
+}
+
+
+# MERGE
+t <- merge(AIC_df,obj)
+t <- merge(t,obj1)
+
+
+# REORDER THE COLUMNS A BIT, SO WE HAVE THE AVERAGE CLOSER TO THE MODEL NAMES
+t <- t[c(1,2,15,16,3,4,5,6,7,8,9,10,11,12,13,14)]
+```
+
+
+## DO THE RMSE and AIC COVARY? 
+```{r}
+
+cor(t$AIC, t$Train_RMSE_avg, method = "kendall") #31%
+
+cor(t$AIC, t$Test_RMSE_avg, method = "kendall") #73%
+
+```
+
 
 ### OPTIONAL: Exercise 5): Using Lasso for model selection
 Welcome to the last secret exercise. If you have already solved the previous exercises, and still there's not enough for you, you can expand your expertise by learning about penalizations. Check out this tutorial: http://machinelearningmastery.com/penalized-regression-in-r/ and make sure to google what penalization is, with a focus on L1 and L2-norms. Then try them on your data!

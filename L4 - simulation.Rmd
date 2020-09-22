@@ -1,0 +1,92 @@
+---
+title: "L4 - simulation"
+author: "PernilleB"
+date: "9/22/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+pacman::p_load(simr,lme4,dplyr)
+
+```
+
+```{r}
+
+df <- read.csv("cleanedData.csv")
+
+df_sub <- df %>% dplyr::select(ID,types_CHI,VISIT,Diagnosis) %>% na.omit()
+
+unique(df_sub$ID)
+
+m <- lme4::lmer(types_CHI ~ VISIT + Diagnosis + (1+VISIT|ID), df_sub, REML = FALSE)
+
+```
+
+CALCULATE POWER FOR VISIT
+```{r}
+
+powerV <- powerSim(m, fixed("VISIT"), nsim = 50) #running 50 simulations, seeing the power of VISIT
+powerD5 <- powerSim(m, fixed("Diagnosis"), nsim = 5)
+
+powerV #100%
+powerD50 #22% w 50 sim
+powerD5 #80% w 5 sim
+
+```
+
+
+```{r}
+
+fixef(m)["VISIT"] <- 10 #, model m, fixed effect is visit, vocabulary size to be increased by 10 words pr VISIT. Let's say this is the minimum effect size we care for
+
+fixef(m)["DiagnosisTD"] <- 30 #, model m, fixed effect is Diagnosis, vocabulary size to be increased by 10 words pr VISIT. Let's say this is the minimum effect size we care for
+
+```
+
+# CREATING POWER CURVE - SEE WHAT IS THE SAMPLE SIZE WE NEED TO DETECT THIS EFFECT
+```{r}
+
+powerCurveV <- powerCurve(m,fixed("VISIT"), along = "ID", nsim = 50) #set along ID, because we want to know how many ID's we need
+
+plot(powerCurveV)
+
+powerCurveD <- powerCurve(m, fixed("DiagnosisTD"), along = "ID", nsim = 200)
+
+plot(powerCurveD)
+
+```
+
+Let's see how we expand our dataset
+```{r}
+
+m2 <- extend(m, along = "ID", n = 120) #ARGUMENT WITHIN IS MISSING? use model m to extend. We want there to be 120 children. If you think you don't have enough data. 
+
+pc3 <- powerCurve(m2, fixed("Diagnosis"), along = "ID", nsim = 200)
+
+plot(pc3)
+
+```
+Here we should get something :) and I don't... We want there to be 120 children. And seeing what we get, we get VISIT of 10, and DiagnosisTD as 16. Effect size was basically determined to be the minimum effectsize. We could also do a power analysis here. 
+
+Time to summarize:
+POWER = 1-beta (beta is prob of false negatives)
+Insufficient power: high risk of unreliable estimates
+
+Estimating power: 
+* simulate dataset
+* Run pilot to have all in place. 
+* replace effect
+
+
+
+# NOTES: 
+In simr, power is calculated by repeating the following three steps: 
+
+(i) simulate new values for the response variable using the model provided; 
+(ii) refit the model to the simulated response; 
+(iii) apply a statistical test to the simulated fit. In this setup the tested effect is known to exist, and so every positive test is a true positive and every negative test is a Type II error.
