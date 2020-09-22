@@ -287,7 +287,6 @@ for (model in models) {
 }
 
 # Report the results and comment on them.
-<<<<<<< HEAD
 
 for (i in 1:5) {
   obj[i, 14] <- mean(as.numeric(obj[i, 2:7]))
@@ -301,20 +300,10 @@ for (i in 1:5) {
 # Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
 
 min(abs(obj$DiffTrainTest)) # gcm1
-=======
-
-for (i in 1:5) {
-  obj[i, 14] <- mean(as.numeric(obj[i, 2:7]))
-  obj[i, 15] <- max(obj[i, 2:7]) - min(obj[i, 2:7])
-  obj[i, 16] <- mean(as.numeric(obj[i, 8:13]))
-  obj[i, 17] <- max(obj[i, 8:13]) - min(obj[i, 8:13])
-  obj[i, 18] <- obj[i, 14] - obj[i, 16]
-}
->>>>>>> ca1ebff83e7b245782bca57350a1a01b06b7217c
 
 min(abs(obj$TrainMean)) # m1
 
-min(abs(obj$TestMean))
+min(abs(obj$TestMean)) # 
 
 # bias decreases
 
