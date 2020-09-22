@@ -302,13 +302,22 @@ for (i in 1:5) {
 
 # Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
 
-obj %>% arrange(abs(DiffTrainTest))
 
-min(abs(obj$DiffTrainTest)) # gcm1
+obj <- obj %>% arrange(abs(TestMean))
+obj$ScoreTestMean <- 1:5
 
-min(abs(obj$TrainMean)) # m1
+obj <- obj %>% arrange(abs(TrainMean))
+obj$ScoreTrainMean <- 1:5
 
-min(abs(obj$TestMean)) # gmc2
+obj <- obj %>% arrange(abs(DiffTrainTest))
+obj$ScoreDiffTrainTest <- 1:5
+
+obj <- obj %>% arrange(abs(AIC))
+obj$ScoreAIC <- 1:5
+
+obj <-
+  obj %>% group_by(ModelNames) %>% mutate(Score = sum(Score4, Score3, Score2, Score1))
+obj <- obj %>% arrange(abs(Score))
 
 # bias decreases
 
