@@ -121,11 +121,17 @@ m <- lmer(CHI_MLU ~
 
 gmc <- lmer(CHI_MLU ~ Diagnosis*I(VISIT)^2+vIQ1+(1|ID),df_train, REML=F)
 
+sub_df_train <- df_train %>%
+  dplyr::select(c(ID, CHI_MLU, VISIT, vIQ1, Diagnosis)) %>%
+  na.omit() %>% 
+  mutate(pred_CHI_MLU_m = fitted(m),
+         pred_CHI_MLU_gcm = fitted(gmc))
+
 
 #- calculate performance of the model on the training data: root mean square error is a good measure. (Tip: google the function rmse())
 
-predictions <- predict(m, df_test)
-rmse(df_test$CHI_MLU, predictions)
+predictions <- predict(m, sub_df_train)
+rmse(sub_df_train$CHI_MLU, predictions)
 
 #- create the test dataset (apply the code from assignment 1 or my function to clean up the 3 test datasets)
 # Test data
@@ -134,7 +140,16 @@ rmse(df_test$CHI_MLU, predictions)
 predictions <- predict(m, df_test)
 rmse(df_test$CHI_MLU, predictions)
 
+rmse_m <- rmse(sub_df_train$CHI_MLU, sub_df_train$pred_CHI_MLU_m) 
+
 #- optional: predictions are never certain, can you identify the uncertainty of the predictions? (e.g. google predictinterval())
+
+
+sub_df_test <- df_test %>% 
+  dplyr::select(c(ID, CHI_MLU, VISIT, vIQ1, Diagnosis)) %>% 
+  na.omit() %>% 
+  mutate(pred_CHI_MLU_m = predict(m, newdata = sub_df_test), 
+         pred_CHI_MLU_gcm = predict(gmc, newdata = sub_df_test)) 
 
 ```
 
@@ -166,6 +181,11 @@ In this exercise you have to use cross-validation to calculate the predictive er
 #- Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
 
 # Bonus Question 1: What is the effect of changing the number of folds? Can you plot RMSE as a function of number of folds?
+
+
+predictions <- predict(m, df_test)
+rmse(df_test$CHI_MLU, predictions)
+
 # Bonus Question 2: compare the cross-validated predictive error against the actual predictive error on the test data
 ```
 
@@ -184,6 +204,126 @@ You want to evaluate:
 - how does the child fare compared to the model predictions at Visit 6? Is the child below or above expectations? (tip: use the predict() function on Bernie's data only and compare the prediction with the actual performance of the child)
 
 ```{r}
+
+#cleaning up data without removing names
+CleanUpData <- function(Demo, LU, Word) {
+  Speech <- merge(LU, Word) %>%
+    rename(ID = SUBJ) %>%
+    mutate(VISIT = as.numeric(str_extract(VISIT, "\\d")),
+           ID = gsub("\\.", "", ID)) %>%
+    dplyr::select(ID,
+                  VISIT,
+                  MOT_MLU,
+                  CHI_MLU,
+                  types_MOT,
+                  types_CHI,
+                  tokens_MOT,
+                  tokens_CHI)
+  
+  Demo <- Demo %>%
+    dplyr::select(
+      Child.ID,
+      Visit,
+      Ethnicity,
+      Diagnosis,
+      Gender,
+      Age,
+      ADOS,
+      MullenRaw,
+      ExpressiveLangRaw,
+      Socialization
+    ) %>% rename(ID = Child.ID, VISIT = Visit) %>% 
+    mutate(ID = gsub("\\.", "", ID))
+  
+  Data = merge(Demo, Speech, all = T)
+  
+  Data1 = Data %>%
+    subset(VISIT == "1") %>%
+    dplyr::select(ID, ADOS, ExpressiveLangRaw, MullenRaw, Socialization) %>%
+    rename(
+      ADOS1 = ADOS,
+      vIQ1 = ExpressiveLangRaw,
+      nvIQ1 = MullenRaw,
+      Socialization1 = Socialization
+    )
+  
+  Data = merge(Data, Data1, all = T) %>%
+    mutate(
+      VISIT = as.numeric(as.character(VISIT)),
+      Gender = recode(Gender,
+                      "1" = "M",
+                      "2" = "F"),
+      Diagnosis = recode(Diagnosis,
+                         "A"  = "ASD",
+                         "B"  = "TD")
+    )
+  
+  return(Data)
+
+df_test_bernie <- CleanUpData(Demo, LU, Word)
+
+
+
+
+#extracting Bernie
+bernie <- df_test_bernie %>% filter(ID == "Bernie")
+#df without Bernie
+notbernie <- df_test_bernie %>% filter(ID != "Bernie")
+#merging one big dataset without Bernie
+
+bernie_df <- merge(notbernie, df_train, all = T)
+
+#extracting only TD children
+
+bernie_df <- bernie_df %>% filter(Diagnosis == "TD")
+
+#how does the child fare in ChildMLU compared to the average TD child at each visit? Define the distance in terms of absolute difference between this Child and the average TD
+
+#dataframe with means per visit of MLU
+MLUpervisit <- bernie_df %>% group_by(VISIT) %>% summarise(mean(CHI_MLU, na.rm =T))
+MLUpervisit$ID <- ("mean")
+colnames(MLUpervisit)[2] <- "CHI_MLU"
+#extracting relevant columns Bernie
+bernie <- bernie %>% select(ID,CHI_MLU, VISIT)
+
+
+comparativeMLU <- rbind(MLUpervisit, bernie)
+
+#PLOTTING!
+
+ggplot(comparativeMLU, aes(x = VISIT, y = CHI_MLU, color = ID))+
+  geom_point()+
+  geom_smooth(method = lm)+
+  ggtitle("Mean length of utterances per visit in TD children versus Bernie")
+
+
+
+#making a dataframe to subtract and compare mean values per visit
+comparativeMLU <- cbind(MLUpervisit, bernie)
+colnames(comparativeMLU) <- c("VISIT_mean", "MEAN_MLU", "mean_ID", "Bernie_ID", "Bernie_MLU", "VISIT_bernie")
+
+comparativeMLU$MEAN_MLU <- as.numeric(comparativeMLU$MEAN_MLU)
+comparativeMLU$Bernie_MLU <- as.numeric(comparativeMLU$Bernie_MLU)
+
+#subtracting the MLUs to compare
+
+comparativeMLU <- comparativeMLU %>% mutate(difference = Bernie_MLU - MEAN_MLU)
+
+
+
+
+#2 
+
+#Filtering only visit 6 for Bernie
+
+bernievisit6 <- bernie %>% filter(VISIT ==6)
+
+#predicting MLU value for Bernie at visit 6
+predict(m, bernievisit6, allow.new.levels = T)
+
+#general rmse predicition for all visits, just for funs
+berniepredictions <- predict(m, bernie, allow.new.levels = T)
+rmse(bernie$CHI_MLU, berniepredictions)
 
 ```
 

@@ -47,7 +47,7 @@ How did your models from last time perform? In this exercise you have to compare
 
 ```{r, include = FALSE}
 
-pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret)
+pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret,merTools)
 
 ## Load data
 Demo <- read_csv("demo_test.csv")
@@ -115,28 +115,60 @@ CleanUpData <- function(Demo, LU, Word) {
   
   return(Data)
 }
-df <- CleanUpData(Demo,Word,LU)
-df_train <- read_csv("CleanedData.csv")
 
 ## NA: remove as few missing values as possible. If you remove all you will end up with almost nothing. 
 # Load training Data
-
+df_train <- read_csv("CleanedData.csv")
 
 #- recreate the models you chose last time (just write the code again and apply it to Train Data)
-m <- lmer(CHI_MLU~
-            Diagnosis * VISIT + vIQ1 + (1+VISIT|ID), df_train, REML = F)
+m <- lmer(CHI_MLU ~
+            Diagnosis * VISIT + vIQ1 + 
+            (1 + VISIT | ID), 
+          df_train, REML = F)
+
+gcm <- lmer(CHI_MLU ~
+              Diagnosis*I(VISIT)^2 + vIQ1 +
+              (1 | ID), #removing random slope to help it converge
+            df_train, REML = F)
 
 #- calculate performance of the model on the training data: root mean square error is a good measure. (Tip: google the function rmse())
-rmse(m)
 
+# Subsetting interesting variables and omiting na's + predicting the values using the predict function
+sub_df_train <- df_train %>%
+  dplyr::select(c(ID, CHI_MLU, VISIT, vIQ1, Diagnosis)) %>%
+  na.omit() %>% 
+  mutate(pred_CHI_MLU_m = fitted(m),
+         pred_CHI_MLU_gcm = fitted(gcm)) #the model omits na's itself, and so it needs to match the df_train
+
+rmse_m <- rmse(sub_df_train$CHI_MLU, sub_df_train$pred_CHI_MLU_m) # rmse = 0.355
+rmse_gcm <- rmse(sub_df_train$CHI_MLU, sub_df_train$pred_CHI_MLU_gcm) # rmse = 0.416
 
 #- create the test dataset (apply the code from assignment 1 or my function to clean up the 3 test datasets)
 # Test data
+df <- CleanUpData(Demo, Word, LU)
 
-#- test the performance of the models on the test data (Tips: google the functions "predict()")
+#- Test the performance of the models on the test data (Tips: google the functions "predict()")
+# Subsetting interesting variables and omiting na's + predicting the values using the predict function
+sub_df_test <- df %>% 
+  dplyr::select(c(ID, CHI_MLU, VISIT, vIQ1, Diagnosis)) %>% 
+  na.omit()
 
+sub_df_test <- sub_df_test %>% 
+  mutate(pred_CHI_MLU_m = predict(m, newdata = sub_df_test), #Newdata = a data.frame of new data to predict
+         pred_CHI_MLU_gcm = predict(gcm, newdata = sub_df_test))
+
+rmse(sub_df_test$CHI_MLU, sub_df_test$pred_CHI_MLU_m) #model 0.72
+rmse(sub_df_test$CHI_MLU, sub_df_test$pred_CHI_MLU_gcm) #growth model 0.70
+
+# NOTES How our models predict on new data^. We want it to be as close to 0 but also as similar as possible to the sample rmse. 
 
 #- optional: predictions are never certain, can you identify the uncertainty of the predictions? (e.g. google predictinterval())
+# NOTES This function can show the uncertainty that is coupled with every time it makes a prediction. Everytime it makes a prediction there is some uncertainty.
+
+intFit <- predictInterval(m, newdata = sub_df_test) %>% 
+  mutate(ID = sub_df_test$ID, obs = 1:35) # from 
+
+# Making some plots
 
 ```
 
@@ -146,11 +178,10 @@ rmse(m)
 
 One way to reduce bad surprises when testing a model on new data is to train the model via cross-validation. 
 
-In this exercise you have to use cross-validation to calculate the predictive error of your models and use this predictive error to select the best possible model.
+In this exercise you have to use cross-validation to **calculate the predictive error of your models and use this predictive error to select the best possible model.** Så vi vil finde det fejl der er i vores forudsigelser og bruge dem til at vælge den bedste model.
 
 - Use cross-validation to compare your model from last week with the basic model (Child MLU as a function of Time and Diagnosis, and don't forget the random effects!)
 - (Tips): google the function "createFolds";  loop through each fold, train both models on the other folds and test them on the fold)
-
 
 - Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
 
@@ -160,8 +191,36 @@ In this exercise you have to use cross-validation to calculate the predictive er
 
 ```{r}
 #- Create the basic model of ChildMLU as a function of Time and Diagnosis (don't forget the random effects!).
+bm <- lmer(CHI_MLU ~ Diagnosis + VISIT + (1+VISIT|ID), df_train)
+sub_df_test$ID <- sub_df_test$ID + 66
+
+df_merged <- merge(sub_df_test,sub_df_train, all = T)
+
+sub_df <- df_merged %>% dplyr::select(c(ID, CHI_MLU, VISIT, Diagnosis))
+sub_df <- sub_df %>% na.omit()
 
 #- Make a cross-validated version of the model. (Tips: google the function "createFolds";  loop through each fold, train a model on the other folds and test it on the fold)
+# Making the folds - parts of the data
+k = 6
+folds = createFolds(unique(sub_df$ID), k = k, list = TRUE, returnTrain = FALSE)
+
+trainRMSE = rep(NA, k) #save RMSE for each 6 times we do the cross validation in training set
+testRMSE = rep(NA, k) #save RMSE for each 6 times we do the cross validation in test set
+
+i = 1 #so that in the beginning we can add it accordingly with each iteration of the loop
+
+for (fold in folds){
+  train = subset(sub_df, !(ID %in% fold)) #define train dataset as subset of df that does not include child ID values in this fold. It takes 5/6 of the data that are not in that fold
+  test = subset(sub_df, ID %in% fold) #define test data where the 1/6 of the data that are in that fold
+  model = bm #Child ID varying pr visit, allow each child to develop in an individual way. Specifying training data
+  test$prediction = predict(model, test, allow.new.levels = TRUE) #we make our predicted values using predict(). Telling the values are from model for the data set called test. We allow new levels
+  train$prediction = fitted(model) #we also need predicted values for our train dataset
+  trainRMSE[i] = rmse(train$CHI_MLU, fitted(model))#we want to calculate rmse for both train and test dataset. We index i. The function is the difference between actual vocabulary and predicted values
+  testRMSE[i] = rmse(test$CHI_MLU, test$prediction)
+  i = i+1 #increase i by 1 at the end of the loop
+
+}
+
 
 #- Report the results and comment on them. 
 
@@ -197,9 +256,224 @@ Another way to reduce the bad surprises when testing a model on new data is to p
 
 Re-create a selection of possible models explaining ChildMLU (the ones you tested for exercise 2, but now trained on the full dataset and not cross-validated).
 
+```{r}
+# THE TWO DATASETS
+df_train <- read_csv("CleanedData.csv")
+
+df_test <- CleanUpData(Demo, LU, Word)
+
+# Testing set
+unique(df_test$ID) # Has 6 ID's. We want to add 66 to it to merge them with the other one.
+
+# Adding 66
+df_test$ID <- df_test$ID+66
+
+# Merging
+df <- merge(df_train,df, all = TRUE)
+
+## MAKING SOME MODELS AND USING THE FUNCTION ON THEM
+m1 <- CHI_MLU ~ Diagnosis + VISIT + vIQ1 + (1 + VISIT | ID)
+
+# Some other models + growth curve models
+m2 <- CHI_MLU ~ Diagnosis * VISIT + vIQ1 + (1 + VISIT | ID)
+
+gcm1 <- CHI_MLU ~ I(VISIT)^2 + Diagnosis + vIQ1 + (1 | ID)
+
+gcm2 <- CHI_MLU ~ I(VISIT)^2 * Diagnosis + vIQ1 + (1 | ID)
+
+gcm3 <- CHI_MLU ~ I(VISIT)^2 * Diagnosis + vIQ1 + (1 + I(VISIT)^2 | ID)
+```
+
+
+```{r}
+
+#We now want a subset with only the desired variables, which are: ID, CHI_MLU, VISIT, Diagnosis, vIQ1 and then we want to omit NA's:
+
+df <-
+  df %>% 
+
+  dplyr::select(c(ID, CHI_MLU, VISIT, Diagnosis, vIQ1)) %>% #Is there a difference of not putting the c() when using select(?) Nope, doesn't look like it
+  
+  na.omit()
+
+# Checking it
+is.na(df)
+
+```
+
+
+```{r}
+# TRAIN THE MODELS ON THE FULL DF
+m1 <- lmer(CHI_MLU ~ Diagnosis + VISIT + vIQ1 + (1 + VISIT | ID), df, REML = F) # DOESN'T CONVERGE
+
+m2 <- lmer(CHI_MLU ~ Diagnosis * VISIT + vIQ1 + (1 | ID), df, REML = F)
+
+gcm1 <- lmer(CHI_MLU ~ Diagnosis + I(VISIT)^2 + vIQ1 + (1 | ID), df, REML = F)
+
+gcm2 <- lmer(CHI_MLU ~ Diagnosis * I(VISIT)^2 + vIQ1 + (1 | ID), df, REML = F)
+
+gcm3 <- lmer(CHI_MLU ~ I(VISIT)^2 * Diagnosis + vIQ1 + (1 + I(VISIT)^2 | ID), df, REML = F) # DOESN'T CONVERGE
+
+
+```
+
+
 Then try to find the best possible predictive model of ChildMLU, that is, the one that produces the lowest information criterion.
+```{r}
+
+models <- c(m1, m2, gcm1, gcm2, gcm3)
+
+names <- c('m1', 'm2', 'gcm1', 'gcm2', 'gcm3')
+
+AIC_df <- matrix(0, ncol = 2, nrow = 5) %>% data.frame()
+
+i = 1
+
+for (model in models) {
+  AIC_df[i, 1] <- names[i]
+  AIC_df[i, 2] <- AIC(model)
+  i = i + 1
+}
+
+colnames(AIC_df)[1] <-
+  'model_names' # Put model_names as name of the first column
+colnames(AIC_df)[2] <-
+  'AIC' # Put AIC
+
+AIC_df #gm3 has the lowest AIC, but didn't converge
+
+```
 
 - Bonus question for the optional exercise: are information criteria correlated with cross-validated RMSE? That is, if you take AIC for Model 1, Model 2 and Model 3, do they co-vary with their cross-validated RMSE?
+
+# TO FIND THE RMSE, I NEED TO SPECIFY THE FOLDING FUNCTION - NB - in other doc it is called sub_df, here just df
+```{r}
+
+folding <- function(syntax){ # Defining function called "folding"
+  
+  k = 6 # Number of folds in k-folds cross-validation
+  
+  folds <- createFolds(unique(df$ID), k = k, list = TRUE, returnTrain = FALSE)
+  
+  trainRMSE <- rep(NA, k) # Save RootMeanSquared (measure of how far off the model is) for each fold/each time we do cross-validation on the train 
+  testRMSE <- rep(NA, k) # Save RootMeanSquared (measure of how far off the model is) for each fold/each time we do cross-validation on the test set
+
+  i = 1
+  for (fold in folds) {
+    train = subset(df, !(ID %in% fold)) # Take everything but ID in this fold ? take 5/6 of the data
+    
+    test = subset(df,(ID %in% fold))
+    
+    model = lmer(syntax, train)
+    
+    test$prediction = predict(model, test, allow.new.levels= TRUE)
+    
+    train$prediction = fitted(model) #same as predict()?
+    
+    trainRMSE[i] = rmse(train$CHI_MLU, train$prediction) #prøv at erstat med fitted(model) hvis det ikke virker
+    
+    testRMSE[i] = rmse(test$CHI_MLU, test$prediction) 
+    
+    i = i + 1
+  }
+return(c(trainRMSE, testRMSE))
+}
+
+```
+
+# Making dataframe with RMSE's from other document "Pernilles notes and guide...":
+```{r}
+
+models <- c(m1, m2, gcm1, gcm2, gcm3)
+
+names <- c('m1', 'm2', 'gcm1', 'gcm2', 'gcm3')
+
+obj <- matrix(0, ncol = 13, nrow = 5) %>% data.frame()
+
+i = 1
+
+for (model in models) {
+  obj[i, 1] <- names[i]
+  obj[i, 2:13] <- folding(model)
+  i = i + 1
+}
+
+for (i in 2:7) {
+  colnames(obj)[i] <-
+    paste("Train_Fold_", i - 1) 
+  colnames(obj)[i + 6] <- paste("Test_Fold_", i - 1) 
+}
+
+colnames(obj)[1] <-
+  'model_names' 
+
+obj #LOTS OF CONVERGENCE ISSUES
+
+```
+
+# NOW, WE CAN ALSO MAKE A DATAFRAME WITH THE AVERAGE OF THE RMSE: 
+```{r}
+# Splitting it up in test and train, because I want to find the average RMSE of the two
+trainFoldsRmse <- obj %>% 
+  dplyr::select(2:7) # Not choosing the names on purpose here, because rowMeans() can't be applied unless all is numeric
+
+testFoldsRmse <- obj %>% 
+  dplyr::select(8:13) # Same logic as above^
+
+# I now want to find average of each row and put it in a new dataframe
+
+names <- c('m1', 'm2', 'gcm1', 'gcm2', 'gcm3') # Calling the model names again to make sure there here
+
+obj1 <- matrix(0, ncol = 3, nrow = 5) %>% data.frame()  #put 0 in all the cells
+
+# Changing headers
+colnames(obj1)[1] <- 'model_names'
+colnames(obj1)[2] <- 'Train_RMSE_avg'
+colnames(obj1)[3] <- 'Test_RMSE_avg'
+
+# Filling column 1 with list of names
+obj1[,1] <- names
+
+
+
+# So now, I want to take the rowMeans and put them in the right place.
+
+# FOR LOOP FOR TRAIN
+i=1
+
+for (model in models) {
+  obj1[i,2] <- rowMeans(trainFoldsRmse[i,])
+  i = i + 1 
+}
+
+# FOR LOOP FOR TEST
+i=1
+
+for (model in models) {
+  obj1[i,3] <- rowMeans(testFoldsRmse[i,])
+  i = i + 1
+}
+
+
+# MERGE
+t <- merge(AIC_df,obj)
+t <- merge(t,obj1)
+
+
+# REORDER THE COLUMNS A BIT, SO WE HAVE THE AVERAGE CLOSER TO THE MODEL NAMES
+t <- t[c(1,2,15,16,3,4,5,6,7,8,9,10,11,12,13,14)]
+```
+
+
+## DO THE RMSE and AIC COVARY? 
+```{r}
+
+cor(t$AIC, t$Train_RMSE_avg, method = "kendall") #31%
+
+cor(t$AIC, t$Test_RMSE_avg, method = "kendall") #73%
+
+```
+
 
 ### OPTIONAL: Exercise 5): Using Lasso for model selection
 Welcome to the last secret exercise. If you have already solved the previous exercises, and still there's not enough for you, you can expand your expertise by learning about penalizations. Check out this tutorial: http://machinelearningmastery.com/penalized-regression-in-r/ and make sure to google what penalization is, with a focus on L1 and L2-norms. Then try them on your data!
