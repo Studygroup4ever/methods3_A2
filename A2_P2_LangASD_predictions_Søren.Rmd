@@ -43,6 +43,11 @@ How did your models from last time perform? In this exercise you have to compare
 - create the test dataset (apply the code from assignment 1 to clean up the 3 test datasets)
 - test the performance of the models on the test data (Tips: google the functions "predict()")
 - optional: predictions are never certain, can you identify the uncertainty of the predictions? (e.g. google predictinterval())
+```{r}
+# Loading packages
+library(pacman)
+pacman::p_load(readr, dplyr, stringr, lmerTest, Metrics, caret, merTools)
+```
 
 ```{r}
 # Load test data
@@ -55,11 +60,7 @@ demo_test <- read_csv('demo_test.csv')
 ```
 
 
-```{r, include = FALSE}
-# Loading packages
-library(pacman)
-pacman::p_load(readr, dplyr, stringr, lmerTest, Metrics, caret, merTools)
-
+```{r}
 ## Clean up function, included to inspire you
 CleanUpData <- function(Demo, LU, Word) {
   Speech <- merge(LU, Word) %>%
@@ -156,11 +157,14 @@ df_test <- CleanUpData(demo_test, LU_test, token_test)
 #- test the performance of the models on the test data (Tips: google the functions "predict()")
 
 # Subsetting interesting variables and omitting NAs and predicting the values using the predict function
-sub_df_test <- df_test %>% 
+sub_df_test <- df_test  %>% 
   dplyr::select(c(ID, CHI_MLU, VISIT, vIQ1, Diagnosis)) %>% 
-  na.omit() %>% 
+  na.omit()
+
+sub_df_test <- sub_df_test %>% 
   mutate(pred_CHI_MLU_m = predict(m, newdata = sub_df_test), 
          pred_CHI_MLU_gcm = predict(gcm, newdata = sub_df_test)) 
+
 
 
 rmse(sub_df_test$CHI_MLU, sub_df_test$pred_CHI_MLU_m) # rmse = 0.726
@@ -175,15 +179,15 @@ intFit %>%
   ggplot(aes( x = obs, y = fit, ymin = lwr, ymax = upr, color = ID)) + 
   geom_point() + 
   geom_linerange() +
-  scale_color_gradientn(colours = rainbow(5)) +
-  labs(x = "Visit", y = "Prediction w/ 95% PI") + theme_minimal()
+  scale_color_gradientn(colours = rainbow(6)) +
+  labs(x = "Observation", y = "Prediction w/ 95% PI") + theme_minimal()
 
 intFit %>%
   ggplot(aes( x = obs, y = fit, ymin = lwr, ymax = upr)) + 
   geom_point(aes(color = ID)) + 
   geom_linerange(aes(color = ID)) +
   scale_colour_gradient(low = "yellow", high = "red") +
-  labs(x = "Visit", y = "Prediction w/ 95% PI") + theme_minimal()
+  labs(x = "Observation", y = "Prediction w/ 95% PI") + theme_minimal()
 
 ```
 
@@ -208,13 +212,86 @@ In this exercise you have to use cross-validation to calculate the predictive er
 ```{r}
 #- Create the basic model of ChildMLU as a function of Time and Diagnosis (don't forget the random effects!).
 
+df_test$ID <- df_test$ID + 66
+
+df_tot <- merge(df_test, df_train, all = T)
+
 #- Make a cross-validated version of the model. (Tips: google the function "createFolds";  loop through each fold, train a model on the other folds and test it on the fold)
 
-#- Report the results and comment on them. 
+sub_df1 <- df_tot %>% 
+  dplyr::select(c(ID, CHI_MLU, VISIT, Diagnosis, vIQ1)) %>% 
+  na.omit()
 
-#- Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
+folding <- function(syntax){
+
+k = 6
+
+folds <- createFolds(unique(sub_df1$ID), k = k, list = TRUE, returnTrain = FALSE)
+
+trainRMSE <- rep(NA, k)
+testRMSE <- rep(NA, k)
+
+i = 1
+for (fold in folds) {
+  train = subset(sub_df1,!(ID %in% fold))
+  test = subset(sub_df1, ID %in% fold)
+  model = lmer(syntax, train)
+  test$prediction = predict(model, test, allow.new.levels = TRUE)
+  train$prediction = fitted(model)
+  trainRMSE[i] = rmse(train$CHI_MLU, fitted(model))
+  testRMSE[i] = rmse(test$CHI_MLU, test$prediction)
+  i = i + 1
+}
+return(c(trainRMSE, testRMSE))
+}
+
+```
+
+```{r}
+
+m1 <-  CHI_MLU ~
+            Diagnosis + VISIT + vIQ1 +
+            (1 + VISIT | ID)
+
+m2 <-  CHI_MLU ~ Diagnosis*VISIT + vIQ1 +
+            (1 + VISIT | ID)
+
+
+gcm1 <- CHI_MLU ~ I(VISIT)^2 + Diagnosis + vIQ1 + (1 | ID)
+
+gcm2 <- CHI_MLU ~ I(VISIT)^2 * Diagnosis + vIQ1 + (1 | ID)
+
+gcm3 <- CHI_MLU ~ I(VISIT)^2 * Diagnosis + vIQ1 + (1 + I(VISIT)^2 | ID)
+
+models <- c(m1, m2, gcm1, gcm2, gcm3)
+names <- c('m1', 'm2', 'gcm1', 'gcm2', 'gcm3')
+
+obj <- matrix(0, ncol = 13, nrow = 5) %>% data.frame()
+
+i = 1
+
+for(model in models){
+  obj[i,1] <- names[i]
+  obj[i, 2:13] <- folding(model)
+  i = i + 1
+}
+
+for(i in 2:7){
+  colnames(obj)[i] <- paste("Train_Fold_", i - 1)
+  colnames(obj)[i + 6] <- paste("Test_Fold_", i - 1)
+}
+
+obj
+
+# Report the results and comment on them. 
+
+
+
+
+# Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
 
 # Bonus Question 1: What is the effect of changing the number of folds? Can you plot RMSE as a function of number of folds?
+
 # Bonus Question 2: compare the cross-validated predictive error against the actual predictive error on the test data
 ```
 

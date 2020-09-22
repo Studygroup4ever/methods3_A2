@@ -47,7 +47,7 @@ How did your models from last time perform? In this exercise you have to compare
 
 ```{r, include = FALSE}
 
-pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret, tidyverse)
+pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret, tidyverse, lme4, caret)
 
 ## Load data
 Demo <- read_csv("demo_test.csv")
@@ -115,23 +115,74 @@ CleanUpData <- function(Demo, LU, Word) {
 clean_test_df <- CleanUpData(Demo, LU, Word)
 
 # Load training Data
-
+#Just imported the dataframe manually
+df_train <- cleanedData
 
 #- recreate the models you chose last time (just write the code again and apply it to Train Data)
+model1 <- lmerTest::lmer(CHI_MLU ~ Diagnosis*VISIT + vIQ1 + (1+VISIT|ID), df_train, REML = F)
+summary(model1)
 
+gcm <- lmerTest::lmer(CHI_MLU ~
+               I(VISIT)^2 * Diagnosis + vIQ1 +
+               (1 | ID),
+             df_train, REML = F)
 
 #- calculate performance of the model on the training data: root mean square error is a good measure. (Tip: google the function rmse())
 
+# Subsetting interesting variables and omiting na's + predicting the values using the predict function
+sub_df_train <- df_train %>%
+  dplyr::select(c(ID, CHI_MLU, VISIT, vIQ1, Diagnosis)) %>%
+  na.omit() %>% 
+  mutate(pred_CHI_MLU_m = fitted(model1),
+         pred_CHI_MLU_gcm = fitted(gcm))
+
+rmse_model1 <- rmse(sub_df_train$CHI_MLU, sub_df_train$pred_CHI_MLU_m) # rmse = 0.355
+rmse_model1
+
+rmse_gcm <- rmse(sub_df_train$CHI_MLU, sub_df_train$pred_CHI_MLU_gcm) # rmse = 0.416
+rmse_gcm
+
+```
 
 
+```{r}
 #- create the test dataset (apply the code from assignment 1 or my function to clean up the 3 test datasets)
 # Test data
+df_test <- clean_test_df
 
 #- test the performance of the models on the test data (Tips: google the functions "predict()")
 
+# Subsetting interesting variables and omiting na's + predicting the values using the predict function
+sub_df_test <- df_test %>%
+  dplyr::select(c(ID, CHI_MLU, VISIT, vIQ1, Diagnosis)) %>%
+  na.omit()
+
+sub_df_test <- sub_df_test %>% 
+  mutate(pred_CHI_MLU_m = predict(model1, newdata = sub_df_test), 
+         pred_CHI_MLU_gcm = predict(gcm, newdata = sub_df_test))
+
+rmse(sub_df_test$CHI_MLU, sub_df_test$pred_CHI_MLU_m) # rmse = 0.726
+rmse(sub_df_test$CHI_MLU, sub_df_test$pred_CHI_MLU_gcm) # rmse = 0.703
 
 #- optional: predictions are never certain, can you identify the uncertainty of the predictions? (e.g. google predictinterval())
 
+intFit <- predictInterval(model1, newdata = sub_df_test) %>% 
+  mutate(ID = sub_df_test$ID, obs = 1:35)
+
+
+intFit %>% 
+  ggplot(aes( x = obs, y = fit, ymin = lwr, ymax = upr, color = ID)) + 
+  geom_point() + 
+  geom_linerange() +
+  scale_color_gradientn(colours = rainbow(5)) +
+  labs(x = "Visit", y = "Prediction w/ 95% PI") + theme_minimal()
+
+intFit %>%
+  ggplot(aes( x = obs, y = fit, ymin = lwr, ymax = upr)) + 
+  geom_point(aes(color = ID)) + 
+  geom_linerange(aes(color = ID)) +
+  scale_colour_gradient(low = "yellow", high = "red") +
+  labs(x = "Visit", y = "Prediction w/ 95% PI") + theme_minimal()
 ```
 
 [HERE GOES YOUR ANSWER]
@@ -145,7 +196,6 @@ In this exercise you have to use cross-validation to calculate the predictive er
 - Use cross-validation to compare your model from last week with the basic model (Child MLU as a function of Time and Diagnosis, and don't forget the random effects!)
 - (Tips): google the function "createFolds";  loop through each fold, train both models on the other folds and test them on the fold)
 
-
 - Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
 
 - Bonus Question 1: What is the effect of changing the number of folds? Can you plot RMSE as a function of number of folds?
@@ -155,11 +205,42 @@ In this exercise you have to use cross-validation to calculate the predictive er
 ```{r}
 #- Create the basic model of ChildMLU as a function of Time and Diagnosis (don't forget the random effects!).
 
+basic_model <- lmer(CHI_MLU ~ Diagnosis*VISIT + (1+VISIT|ID), df_train, REML = F)
+
 #- Make a cross-validated version of the model. (Tips: google the function "createFolds";  loop through each fold, train a model on the other folds and test it on the fold)
 
+#Making subset of the data that matches the predictors from the basic model
+sub_df_train1 <- sub_df_train %>% 
+  dplyr::select(c(ID, CHI_MLU, VISIT, Diagnosis)) %>%
+  na.omit()
+
+#Classifying the number of folds
+k = 6
+folds <- createFolds(unique(sub_df_train1$ID), k = k, list = TRUE, returnTrain = FALSE)
+
+#Specifying where I want the results
+trainRMSE <- rep(NA, k)
+testRMSE <- rep(NA, k)
+
+#Making the loop
+i = 1
+for (fold in folds){
+  train = subset(sub_df_train1, !(ID %in% fold))
+  test = subset(sub_df_train1, ID %in% fold)
+  model = lmer(CHI_MLU ~ Diagnosis*VISIT + (1+VISIT|ID), train)
+  test$prediction = predict(model, test, allow.new.levels = TRUE)
+  train$prediction = fitted(model)
+  trainRMSE[i] = rmse(train$CHI_MLU, fitted(model))
+  testRMSE[i] = rmse(test$CHI_MLU, test$prediction)
+  i = i+1
+}
+
+trainRMSE
+testRMSE
 #- Report the results and comment on them. 
 
 #- Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
+
 
 # Bonus Question 1: What is the effect of changing the number of folds? Can you plot RMSE as a function of number of folds?
 # Bonus Question 2: compare the cross-validated predictive error against the actual predictive error on the test data
