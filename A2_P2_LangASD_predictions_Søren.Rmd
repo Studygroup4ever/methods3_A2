@@ -235,14 +235,16 @@ i = 1
 for (fold in folds) {
   train = subset(sub_df1,!(ID %in% fold))
   test = subset(sub_df1, ID %in% fold)
-  model = lmer(syntax, train)
+  model = lmer(syntax, train, REML = F)
+  sum = summary(model)
+  AIC = sum[["AICtab"]][["AIC"]]
   test$prediction = predict(model, test, allow.new.levels = TRUE)
   train$prediction = fitted(model)
   trainRMSE[i] = rmse(train$CHI_MLU, fitted(model))
   testRMSE[i] = rmse(test$CHI_MLU, test$prediction)
   i = i + 1
 }
-return(c(trainRMSE, testRMSE))
+return(c(trainRMSE, testRMSE, AIC))
 }
 
 ```
@@ -264,7 +266,7 @@ gcm3 <-
 models <- c(m1, m2, gcm1, gcm2, gcm3)
 names <- c('m1', 'm2', 'gcm1', 'gcm2', 'gcm3')
 
-obj <- matrix(0, ncol = 18, nrow = 5) %>% data.frame()
+obj <- matrix(0, ncol = 19, nrow = 5) %>% data.frame()
 
 for (i in 2:7) {
   colnames(obj)[i] <- paste("TrainFold", i - 1, sep = "")
@@ -272,38 +274,41 @@ for (i in 2:7) {
 }
 
 colnames(obj)[1] <- 'ModelNames'
-colnames(obj)[14] <- 'TrainMean'
-colnames(obj)[15] <- 'TrainSpread'
-colnames(obj)[16] <- 'TestMean'
-colnames(obj)[17] <- 'TestSpread'
-colnames(obj)[18] <- 'DiffTrainTest'
+colnames(obj)[14] <- 'AIC'
+colnames(obj)[15] <- 'TrainMean'
+colnames(obj)[16] <- 'TrainSpread'
+colnames(obj)[17] <- 'TestMean'
+colnames(obj)[18] <- 'TestSpread'
+colnames(obj)[19] <- 'DiffTrainTest'
 
 i = 1
 
 for (model in models) {
   obj[i, 1] <- names[i]
-  obj[i, 2:13] <- folding(model)
+  obj[i, 2:14] <- folding(model)
   i = i + 1
 }
 
 # Report the results and comment on them.
 
 for (i in 1:5) {
-  obj[i, 14] <- mean(as.numeric(obj[i, 2:7]))
-  obj[i, 15] <- max(obj[i, 2:7]) - min(obj[i, 2:7])
-  obj[i, 16] <- mean(as.numeric(obj[i, 8:13]))
-  obj[i, 17] <- max(obj[i, 8:13]) - min(obj[i, 8:13])
-  obj[i, 18] <- obj[i, 14] - obj[i, 16]
+  obj[i, 15] <- mean(as.numeric(obj[i, 2:7]))
+  obj[i, 16] <- max(obj[i, 2:7]) - min(obj[i, 2:7])
+  obj[i, 17] <- mean(as.numeric(obj[i, 8:13]))
+  obj[i, 18] <- max(obj[i, 8:13]) - min(obj[i, 8:13])
+  obj[i, 19] <- obj[i, 15] - obj[i, 17]
 }
 
 
 # Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
 
+obj %>% arrange(abs(DiffTrainTest))
+
 min(abs(obj$DiffTrainTest)) # gcm1
 
 min(abs(obj$TrainMean)) # m1
 
-min(abs(obj$TestMean)) # 
+min(abs(obj$TestMean)) # gmc2
 
 # bias decreases
 
