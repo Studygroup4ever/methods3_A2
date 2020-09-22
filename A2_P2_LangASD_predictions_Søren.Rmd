@@ -316,7 +316,7 @@ obj <- obj %>% arrange(abs(AIC))
 obj$ScoreAIC <- 1:5
 
 obj <-
-  obj %>% group_by(ModelNames) %>% mutate(Score = sum(Score4, Score3, Score2, Score1))
+  obj %>% group_by(ModelNames) %>% mutate(Score = sum(ScoreTestMean, ScoreTrainMean, ScoreDiffTrainTest, ScoreAIC))
 obj <- obj %>% arrange(abs(Score))
 
 # bias decreases
