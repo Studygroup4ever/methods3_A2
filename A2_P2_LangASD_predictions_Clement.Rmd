@@ -47,7 +47,7 @@ How did your models from last time perform? In this exercise you have to compare
 
 ```{r, include = FALSE}
 
-pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret, tidyverse, lme4, caret)
+pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret, tidyverse, lme4, caret, merTools)
 
 ## Load data
 Demo <- read_csv("demo_test.csv")
@@ -113,6 +113,7 @@ CleanUpData <- function(Demo, LU, Word) {
   return(Data)
 }
 clean_test_df <- CleanUpData(Demo, LU, Word)
+cleanedData <- read_csv("cleanedData.csv")
 
 # Load training Data
 #Just imported the dataframe manually
@@ -120,7 +121,8 @@ df_train <- cleanedData
 
 #- recreate the models you chose last time (just write the code again and apply it to Train Data)
 model1 <- lmerTest::lmer(CHI_MLU ~ Diagnosis*VISIT + vIQ1 + (1+VISIT|ID), df_train, REML = F)
-summary(model1)
+sum <- summary(model1)
+sum
 
 gcm <- lmerTest::lmer(CHI_MLU ~
                I(VISIT)^2 * Diagnosis + vIQ1 +
@@ -204,18 +206,34 @@ In this exercise you have to use cross-validation to calculate the predictive er
 
 ```{r}
 #- Create the basic model of ChildMLU as a function of Time and Diagnosis (don't forget the random effects!).
+#merging the datasets to include the test data as well
+df_total <- merge(cleanedData, clean_test_df, all = T)
+
+#Defining a function to mena-center the column CHI_MLU
+center_scale <- function(x) {
+    scale(x, scale = FALSE)
+}
+
+df_total$CHI_MLU_centered <- center_scale(df_total$CHI_MLU)
+
+
 
 basic_model <- lmer(CHI_MLU ~ Diagnosis*VISIT + (1+VISIT|ID), df_train, REML = F)
+
+#Making a model on mean-centered data to see what happens
+model_non_centered <- lmer(CHI_MLU ~ VISIT * Diagnosis + vIQ1 + (1+VISIT|ID), df_total)
+
+model_centered <- lmer(CHI_MLU_centered ~ VISIT * Diagnosis + vIQ1 + (1+VISIT|ID), df_total) #Fails to converge..
 
 #- Make a cross-validated version of the model. (Tips: google the function "createFolds";  loop through each fold, train a model on the other folds and test it on the fold)
 
 #Making subset of the data that matches the predictors from the basic model
 sub_df_train1 <- sub_df_train %>% 
-  dplyr::select(c(ID, CHI_MLU, VISIT, Diagnosis)) %>%
+  dplyr::select(c(ID, CHI_MLU, VISIT, Diagnosis, vIQ1)) %>%
   na.omit()
 
 #Classifying the number of folds
-k = 6
+k = 10
 folds <- createFolds(unique(sub_df_train1$ID), k = k, list = TRUE, returnTrain = FALSE)
 
 #Specifying where I want the results
@@ -223,7 +241,7 @@ trainRMSE <- rep(NA, k)
 testRMSE <- rep(NA, k)
 
 #Making the loop
-i = 1
+'i = 1
 for (fold in folds){
   train = subset(sub_df_train1, !(ID %in% fold))
   test = subset(sub_df_train1, ID %in% fold)
@@ -236,15 +254,121 @@ for (fold in folds){
 }
 
 trainRMSE
-testRMSE
+testRMSE'
+
+#USING SØREN'S CODE TO BULD A FUNCTION:
+
+folding <- function(syntax){
+
+k = 20
+
+folds <- createFolds(unique(sub_df_train1$ID), k = k, list = TRUE, returnTrain = FALSE)
+
+trainRMSE <- rep(NA, k)
+testRMSE <- rep(NA, k)
+AIC = rep(NA, k)
+
+i = 1
+for (fold in folds) {
+  train = subset(sub_df_train1,!(ID %in% fold))
+  test = subset(sub_df_train1, ID %in% fold)
+  model = lmer(syntax, train, REML = F)
+  test$prediction = predict(model, test, allow.new.levels = TRUE)
+  train$prediction = fitted(model)
+  trainRMSE[i] = rmse(train$CHI_MLU, fitted(model))
+  testRMSE[i] = rmse(test$CHI_MLU, test$prediction)
+  AIC[i] = summary(model)[["AICtab"]][["AIC"]]
+  i = i + 1
+}
+AIC_mean = mean(AIC)
+m_train = mean(trainRMSE)
+m_test = mean(testRMSE)
+DiffTrainTest = m_train - m_test
+return(c(AIC_mean, m_train, m_test, DiffTrainTest))
+}
 #- Report the results and comment on them. 
 
 #- Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
-
+#####SEE SØREN'S CODE###############
 
 # Bonus Question 1: What is the effect of changing the number of folds? Can you plot RMSE as a function of number of folds?
 # Bonus Question 2: compare the cross-validated predictive error against the actual predictive error on the test data
 ```
+
+```{r}
+####SØREN'S CODE FOR ASSESSING DIFFERNT MODELS ACCORDING TO THEIR RMSE######
+obj <- matrix(0, ncol = 5, nrow = 5) %>% data.frame()
+
+colnames(obj)[1] <- 'ModelNames'
+colnames(obj)[2] <- 'AICMean'
+colnames(obj)[3] <- 'TrainMean'
+colnames(obj)[4] <- 'TestMean'
+colnames(obj)[5] <- 'DiffTrainTest'
+
+#Writing the syntax for the different models, to use in the folding function
+
+m1 <-  CHI_MLU ~
+  Diagnosis + VISIT + vIQ1 +
+  (1 + VISIT | ID)
+m2 <-  CHI_MLU ~ Diagnosis * VISIT + vIQ1 +
+  (1 + VISIT | ID)
+
+#More syntax
+gcm1 <- CHI_MLU ~ I(VISIT) ^ 2 + Diagnosis + vIQ1 + (1 | ID)
+gcm2 <- CHI_MLU ~ I(VISIT) ^ 2 * Diagnosis + vIQ1 + (1 | ID)
+gcm3 <-
+  CHI_MLU ~ I(VISIT) ^ 2 * Diagnosis + vIQ1 + (1 + I(VISIT) ^ 2 | ID)
+
+models <- c(m1, m2, gcm1, gcm2, gcm3)
+names <- c('m1', 'm2', 'gcm1', 'gcm2', 'gcm3')
+
+
+m_scores <- matrix(0, ncol = 20, nrow = 1) %>% data.frame()
+'
+for(j in 1:20){
+  
+i = 1
+
+for (model in models) {
+  obj[i, 1] <- names[i]
+  obj[i, 2:5] <- folding(model)
+  i = i + 1
+}
+
+# Report the results and comment on them.
+
+
+# Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
+
+
+obj <- obj %>% arrange(abs(TestMean))
+obj$ScoreTestMean <- 1:5
+
+obj <- obj %>% arrange(abs(TrainMean))
+obj$ScoreTrainMean <- 1:5
+
+obj <- obj %>% arrange(abs(DiffTrainTest))
+obj$ScoreDiffTrainTest <- 1:5
+
+obj <- obj %>% arrange(abs(AICMean))
+obj$ScoreAIC <- 1:5
+
+obj <-
+  obj %>% group_by(ModelNames) %>% mutate(Score = sum(ScoreTestMean, ScoreTrainMean, ScoreDiffTrainTest, ScoreAIC))
+obj <- obj %>% arrange(abs(Score))
+
+m_scores[1, j] <- obj[1,1]
+}
+'
+#This for-loop doesn't really work.. Error: "Error: Invalid grouping factor specification, ID"
+
+# Bonus Question 1: What is the effect of changing the number of folds? Can you plot RMSE as a function of number of folds?
+
+
+
+# Bonus Question 2: compare the cross-validated predictive error against the actual predictive error on the test data
+```
+
 
 [HERE GOES YOUR ANSWER]
 
@@ -261,9 +385,148 @@ You want to evaluate:
 - how does the child fare compared to the model predictions at Visit 6? Is the child below or above expectations? (tip: use the predict() function on Bernie's data only and compare the prediction with the actual performance of the child)
 
 ```{r}
+#cleaning up data without removing names
+CleanUpData1 <- function(Demo, LU, Word) {
+  Speech <- merge(LU, Word) %>%
+    rename(ID = SUBJ) %>%
+    mutate(VISIT = as.numeric(str_extract(VISIT, "\\d")), ID = gsub("\\.", "", ID)) %>%
+    dplyr::select(ID,
+                  VISIT,
+                  MOT_MLU,
+                  CHI_MLU,
+                  types_MOT,
+                  types_CHI,
+                  tokens_MOT,
+                  tokens_CHI)
+  
+  Demo <- Demo %>%
+    dplyr::select(
+      Child.ID,
+      Visit,
+      Ethnicity,
+      Diagnosis,
+      Gender,
+      Age,
+      ADOS,
+      MullenRaw,
+      ExpressiveLangRaw,
+      Socialization
+    ) %>% rename(ID = Child.ID, VISIT = Visit) %>% 
+    mutate(ID = gsub("\\.", "", ID))
+  
+  Data = merge(Demo, Speech, all = T)
+  
+  Data1 = Data %>%
+    subset(VISIT == "1") %>%
+    dplyr::select(ID, ADOS, ExpressiveLangRaw, MullenRaw, Socialization) %>%
+    rename(
+      ADOS1 = ADOS,
+      vIQ1 = ExpressiveLangRaw,
+      nvIQ1 = MullenRaw,
+      Socialization1 = Socialization
+    )
+  
+  Data = merge(Data, Data1, all = T) %>%
+    mutate(
+      VISIT = as.numeric(as.character(VISIT)),
+      Gender = recode(Gender,
+                      "1" = "M",
+                      "2" = "F"),
+      Diagnosis = recode(Diagnosis,
+                         "A"  = "ASD",
+                         "B"  = "TD")
+    )
+  
+  return(Data)
+}
+
+
 
 ```
 
+
+```{r}
+demo_test <- read_csv("demo_test.csv")
+LU_test <- read_csv("LU_test.csv")
+token_test <- read_csv("token_test.csv")
+df_test_bernie <- CleanUpData1(demo_test, LU_test, token_test)
+
+#Making a model for bernie.
+m <- lmer(CHI_MLU ~
+            Diagnosis * VISIT + vIQ1 +
+            (1 + VISIT | ID),
+          df_train, REML = F)
+
+
+
+#extracting Bernie
+bernie <- df_test_bernie %>% filter(ID == "Bernie")
+bernie1 <- bernie
+#df without Bernie
+notbernie <- df_test_bernie %>% filter(ID != "Bernie")
+#merging one big dataset without Bernie
+
+bernie_df <- merge(notbernie, df_train, all = T)
+
+#extracting only TD children
+bernie_df <- bernie_df %>% filter(Diagnosis == "TD")
+
+#how does the child fare in ChildMLU compared to the average TD child at each visit? Define the distance in terms of absolute difference between this Child and the average TD
+
+#dataframe with means per visit of MLU
+MLUpervisit <-
+  bernie_df %>% 
+  group_by(VISIT) %>% 
+  summarise(mean(CHI_MLU, na.rm = T))
+
+MLUpervisit$ID <- ("mean of TD")
+
+colnames(MLUpervisit)[2] <- "CHI_MLU"
+
+#extracting relevant columns Bernie
+bernie1 <- bernie %>% dplyr::select(ID, CHI_MLU, VISIT, Diagnosis, vIQ1)
+bernie <- bernie %>% dplyr::select(ID, CHI_MLU, VISIT)
+
+comparativeMLU <- rbind(MLUpervisit, bernie)
+
+#PLOTTING!
+ggplot(comparativeMLU, aes(x = VISIT, y = CHI_MLU, color = ID)) +
+  geom_point() +
+  geom_smooth(method = lm) +
+  ggtitle("Mean length of utterances per visit in TD children versus Bernie")
+
+
+
+#making a dataframe to subtract and compare mean values per visit
+comparativeMLU <- cbind(MLUpervisit, bernie)
+colnames(comparativeMLU) <-
+  c("VISIT_mean",
+    "MEAN_MLU",
+    "mean_ID",
+    "Bernie_ID",
+    "Bernie_MLU",
+    "VISIT_bernie")
+
+comparativeMLU$MEAN_MLU <- as.numeric(comparativeMLU$MEAN_MLU)
+comparativeMLU$Bernie_MLU <- as.numeric(comparativeMLU$Bernie_MLU)
+
+#subtracting the MLUs to compare
+comparativeMLU <-
+  comparativeMLU %>% mutate(difference = Bernie_MLU - MEAN_MLU)
+
+#2 
+
+#Filtering only visit 6 for Bernie
+bernievisit6 <- bernie1 %>% filter(VISIT == 6)
+
+#predicting MLU value for Bernie at visit 6
+predict(m, bernievisit6, allow.new.levels = T)
+
+#general rmse predicition for all visits, just for funs
+berniepredictions <- predict(m, bernie1, allow.new.levels = T)
+rmse(bernie1$CHI_MLU, berniepredictions)
+
+```
 
 [HERE GOES YOUR ANSWER]
 
