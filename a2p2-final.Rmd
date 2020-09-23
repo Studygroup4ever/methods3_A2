@@ -268,7 +268,7 @@ gcm3 <- lmer(CHI_MLU ~ I(VISIT) ^ 2 * Diagnosis + vIQ1 + (1 + I(VISIT) ^ 2 | ID)
 m2 <-  lmer(CHI_MLU ~ Diagnosis * VISIT + vIQ1 +
   (1 + VISIT | ID), sub_df_train, REML = F)
 
-#summary(gcm3)
+summary(gcm3)
 #summary(m2)
 
 #anova(gcm3, m2)
@@ -289,7 +289,7 @@ colnames(obj)[5] <- 'DiffTrainTest'
 ```{r}
 m_scores <- matrix(0, ncol = 20, nrow = 1) %>% data.frame()
 
-for(i in 1:20){
+for(j in 1:20){
   
 i = 1
 
@@ -321,10 +321,10 @@ obj <-
   obj %>% group_by(ModelNames) %>% mutate(Score = sum(ScoreTestMean, ScoreTrainMean, ScoreDiffTrainTest, ScoreAIC))
 obj <- obj %>% arrange(abs(Score))
 
-m_scores[i, 1] <- obj[1,1]
+m_scores[1, j] <- obj[1,1]
 }
 
-m_scores
+table(unlist(m_scores))
 # bias decreases
 
 # Bonus Question 1: What is the effect of changing the number of folds? Can you plot RMSE as a function of number of folds?
