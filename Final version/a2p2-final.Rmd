@@ -1,6 +1,6 @@
 ---
 title: "Assignment 2 - Language Development in ASD - Making predictions"
-author: "Søren Orm Hansen"
+author: "Klara, Pernille, Søren, Clement & Julia"
 date: "September, 2020"
 output:
   pdf_document: default
