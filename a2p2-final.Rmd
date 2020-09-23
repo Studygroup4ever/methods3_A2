@@ -223,14 +223,11 @@ sub_df1 <- df_tot %>%
   na.omit()
 
 folding <- function(syntax){
-
-k = 6
-
-folds <- createFolds(unique(sub_df1$ID), k = k, list = TRUE, returnTrain = FALSE)
-
-trainRMSE <- rep(NA, k)
-testRMSE <- rep(NA, k)
-AIC = rep(NA, k)
+  k = 10
+  folds <- createFolds(unique(sub_df1$ID), k = k, list = TRUE, returnTrain = FALSE)
+  trainRMSE <- rep(NA, k)
+  testRMSE <- rep(NA, k)
+  AIC = rep(NA, k)
 
 i = 1
 for (fold in folds) {
@@ -244,10 +241,10 @@ for (fold in folds) {
   AIC[i] = summary(model)[["AICtab"]][["AIC"]]
   i = i + 1
 }
-AIC_mean = mean(AIC)
-m_train = mean(trainRMSE)
-m_test = mean(testRMSE)
-DiffTrainTest = m_train - m_test
+  AIC_mean = mean(AIC)
+  m_train = mean(trainRMSE)
+  m_test = mean(testRMSE)
+  DiffTrainTest = m_train - m_test
 return(c(AIC_mean, m_train, m_test, DiffTrainTest))
 }
 
@@ -266,6 +263,15 @@ gcm2 <- CHI_MLU ~ I(VISIT) ^ 2 * Diagnosis + vIQ1 + (1 | ID)
 gcm3 <-
   CHI_MLU ~ I(VISIT) ^ 2 * Diagnosis + vIQ1 + (1 + I(VISIT) ^ 2 | ID)
 
+gcm3 <- lmer(CHI_MLU ~ I(VISIT) ^ 2 * Diagnosis + vIQ1 + (1 + I(VISIT) ^ 2 | ID), sub_df_train, REML = F)
+
+m2 <-  lmer(CHI_MLU ~ Diagnosis * VISIT + vIQ1 +
+  (1 + VISIT | ID), sub_df_train, REML = F)
+
+#summary(gcm3)
+#summary(m2)
+
+#anova(gcm3, m2)
 
 models <- c(m1, m2, gcm1, gcm2, gcm3)
 names <- c('m1', 'm2', 'gcm1', 'gcm2', 'gcm3')
@@ -278,6 +284,13 @@ colnames(obj)[3] <- 'TrainMean'
 colnames(obj)[4] <- 'TestMean'
 colnames(obj)[5] <- 'DiffTrainTest'
 
+```
+
+```{r}
+m_scores <- matrix(0, ncol = 20, nrow = 1) %>% data.frame()
+
+for(i in 1:20){
+  
 i = 1
 
 for (model in models) {
@@ -308,12 +321,20 @@ obj <-
   obj %>% group_by(ModelNames) %>% mutate(Score = sum(ScoreTestMean, ScoreTrainMean, ScoreDiffTrainTest, ScoreAIC))
 obj <- obj %>% arrange(abs(Score))
 
+m_scores[i, 1] <- obj[1,1]
+}
+
+m_scores
 # bias decreases
 
 # Bonus Question 1: What is the effect of changing the number of folds? Can you plot RMSE as a function of number of folds?
 
 # Bonus Question 2: compare the cross-validated predictive error against the actual predictive error on the test data
 ```
+
+m2: III
+gcm2: I
+gcm3: III
 
 [HERE GOES YOUR ANSWER]
 
