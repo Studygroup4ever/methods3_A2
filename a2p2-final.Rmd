@@ -230,21 +230,25 @@ folds <- createFolds(unique(sub_df1$ID), k = k, list = TRUE, returnTrain = FALSE
 
 trainRMSE <- rep(NA, k)
 testRMSE <- rep(NA, k)
+AIC = rep(NA, k)
 
 i = 1
 for (fold in folds) {
   train = subset(sub_df1,!(ID %in% fold))
   test = subset(sub_df1, ID %in% fold)
   model = lmer(syntax, train, REML = F)
-  sum = summary(model)
-  AIC = sum[["AICtab"]][["AIC"]]
   test$prediction = predict(model, test, allow.new.levels = TRUE)
   train$prediction = fitted(model)
   trainRMSE[i] = rmse(train$CHI_MLU, fitted(model))
   testRMSE[i] = rmse(test$CHI_MLU, test$prediction)
+  AIC[i] = summary(model)[["AICtab"]][["AIC"]]
   i = i + 1
 }
-return(c(trainRMSE, testRMSE, AIC))
+AIC_mean = mean(AIC)
+m_train = mean(trainRMSE)
+m_test = mean(testRMSE)
+DiffTrainTest = m_train - m_test
+return(c(AIC_mean, m_train, m_test, DiffTrainTest))
 }
 
 ```
@@ -257,47 +261,32 @@ m1 <-  CHI_MLU ~
 m2 <-  CHI_MLU ~ Diagnosis * VISIT + vIQ1 +
   (1 + VISIT | ID)
 
-
 gcm1 <- CHI_MLU ~ I(VISIT) ^ 2 + Diagnosis + vIQ1 + (1 | ID)
 gcm2 <- CHI_MLU ~ I(VISIT) ^ 2 * Diagnosis + vIQ1 + (1 | ID)
 gcm3 <-
   CHI_MLU ~ I(VISIT) ^ 2 * Diagnosis + vIQ1 + (1 + I(VISIT) ^ 2 | ID)
 
+
 models <- c(m1, m2, gcm1, gcm2, gcm3)
 names <- c('m1', 'm2', 'gcm1', 'gcm2', 'gcm3')
 
-obj <- matrix(0, ncol = 19, nrow = 5) %>% data.frame()
-
-for (i in 2:7) {
-  colnames(obj)[i] <- paste("TrainFold", i - 1, sep = "")
-  colnames(obj)[i + 6] <- paste("TestFold", i - 1, sep = "")
-}
+obj <- matrix(0, ncol = 5, nrow = 5) %>% data.frame()
 
 colnames(obj)[1] <- 'ModelNames'
-colnames(obj)[14] <- 'AIC'
-colnames(obj)[15] <- 'TrainMean'
-colnames(obj)[16] <- 'TrainSpread'
-colnames(obj)[17] <- 'TestMean'
-colnames(obj)[18] <- 'TestSpread'
-colnames(obj)[19] <- 'DiffTrainTest'
+colnames(obj)[2] <- 'AICMean'
+colnames(obj)[3] <- 'TrainMean'
+colnames(obj)[4] <- 'TestMean'
+colnames(obj)[5] <- 'DiffTrainTest'
 
 i = 1
 
 for (model in models) {
   obj[i, 1] <- names[i]
-  obj[i, 2:14] <- folding(model)
+  obj[i, 2:5] <- folding(model)
   i = i + 1
 }
 
 # Report the results and comment on them.
-
-for (i in 1:5) {
-  obj[i, 15] <- mean(as.numeric(obj[i, 2:7]))
-  obj[i, 16] <- max(obj[i, 2:7]) - min(obj[i, 2:7])
-  obj[i, 17] <- mean(as.numeric(obj[i, 8:13]))
-  obj[i, 18] <- max(obj[i, 8:13]) - min(obj[i, 8:13])
-  obj[i, 19] <- obj[i, 15] - obj[i, 17]
-}
 
 
 # Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
@@ -312,7 +301,7 @@ obj$ScoreTrainMean <- 1:5
 obj <- obj %>% arrange(abs(DiffTrainTest))
 obj$ScoreDiffTrainTest <- 1:5
 
-obj <- obj %>% arrange(abs(AIC))
+obj <- obj %>% arrange(abs(AICMean))
 obj$ScoreAIC <- 1:5
 
 obj <-
