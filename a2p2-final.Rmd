@@ -1,0 +1,136 @@
+---
+title: "SIMR"
+author: "Søren Orm Hansen"
+date: "9/21/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+library(pacman)
+
+p_load(simr, lme4, dplyr)
+```
+
+```{r}
+df <- read_csv('cleanedData.csv')
+
+sub_df_train <- df %>%
+  dplyr::select(c(ID, types_CHI, VISIT, Diagnosis)) %>%
+  na.omit()
+#mutate(pred_CHI_MLU_m = fitted(m),
+#pred_CHI_MLU_gcm = fitted(gcm))
+
+```
+
+```{r}
+m1 <-
+  lme4::lmer(data = sub_df_train,
+             types_CHI ~ VISIT + Diagnosis + (1 + VISIT | ID),
+             REML = F)
+
+summary(m1)
+
+powerV <- powerSim(m1, fixed('VISIT'))
+powerD <- powerSim(m1, fixed('Diagnosis'))
+
+powerV
+powerD
+```
+
+```{r}
+fixef(m1)['VISIT'] <- 10
+fixef(m1)['DiagnosisTD'] <- 30
+
+powerCV <- powerCurve(m1, fixed('VISIT'), along = 'ID', nsim = 50)
+powerCD <-
+  powerCurve(m1, fixed('Diagnosis'), along = 'ID', nsim = 50)
+
+plot(powerCV)
+plot(powerCD)
+
+```
+
+```{r}
+m2 <- extend(m1, along = "ID", n = 120)
+#pc3 <- powerCurve(m2, fixed('Diagnosis'), along="ID", nsim = 50)
+plot(pc3)
+```
+
+
+
+```{r}
+
+simdata <- simdata
+
+model1 <- glmer(z ~ x + (1|g), family="poisson", data=simdata)
+
+summary(model1)
+
+fixef(model1)["x"] <- -0.05
+
+summary(model1)
+
+powerSim(model1)
+
+```
+
+
+Power for predictor 'x', (95% confidence interval):====================================================|
+      31.30% (28.43, 34.28)
+
+Test: z-test
+      Effect size for x is -0.050
+
+Based on 1000 simulations, (4 warnings, 0 errors)
+alpha = 0.05, nrow = 30
+
+Time elapsed: 0 h 1 m 22 s
+
+```{r}
+model2 <- extend(model1, along="x", n=20)
+powerSim(model2)
+```
+
+Power for predictor 'x', (95% confidence interval):====================================================|
+      94.60% (93.01, 95.92)
+
+Test: z-test
+      Effect size for x is -0.050
+
+Based on 1000 simulations, (22 warnings, 0 errors)
+alpha = 0.05, nrow = 60
+
+Time elapsed: 0 h 1 m 20 s
+
+```{r}
+pc2 <- powerCurve(model2)
+print(pc2)
+```
+Power for predictor 'x', (95% confidence interval),
+by largest value of x:
+      3:  4.50% ( 3.30,  5.98) - 9 rows
+      5:  8.30% ( 6.66, 10.19) - 15 rows
+      7: 12.80% (10.79, 15.03) - 21 rows
+      9: 25.40% (22.73, 28.22) - 27 rows
+     11: 41.30% (38.23, 44.42) - 33 rows
+     12: 49.60% (46.46, 52.75) - 36 rows
+     14: 66.00% (62.97, 68.94) - 42 rows
+     16: 80.20% (77.59, 82.63) - 48 rows
+     18: 89.00% (86.89, 90.87) - 54 rows
+     20: 95.90% (94.48, 97.04) - 60 rows
+
+Time elapsed: 0 h 9 m 18 s
+
+
+
+
+
+
+
+

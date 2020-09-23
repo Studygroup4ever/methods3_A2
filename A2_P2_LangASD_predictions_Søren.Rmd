@@ -458,12 +458,8 @@ comparativeMLU$MEAN_MLU <- as.numeric(comparativeMLU$MEAN_MLU)
 comparativeMLU$Bernie_MLU <- as.numeric(comparativeMLU$Bernie_MLU)
 
 #subtracting the MLUs to compare
-
 comparativeMLU <-
   comparativeMLU %>% mutate(difference = Bernie_MLU - MEAN_MLU)
-
-
-
 
 #2 
 
