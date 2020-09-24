@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ## Libraries
 ```{r cars}
 # Libraries
-pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret,merTools,Rfast)
+pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret,merTools,Rfast,lme4,ggpubr)
 
 ## Load data
 Demo <- read_csv("demo_test.csv")
@@ -695,6 +695,75 @@ plot(df_w_Bernie$CHI_MLU,df_w_Bernie$TD_avg_pr_VISIT)
 
 
 
+### FUNCTION
+```{r}
+
+#colnames(obj)[14])) # GIVES THEM NAME LATER
+              
+#for (i in 1:5){
+#  obj[i,14] <- mean(as.numeric(obj[i,2:7]))
+#  obj[i,15] <- mean(as.numeric(obj[i,8:13]))
+#  obj[i,16] <- max(obj[i,2:7] - min(obj[i,2:7]))
+#  obj[i,17] <- c
+    
+    
+    ##### KIG PÅ DET HER
+    
+#obj <- obj %>% arrange(abs(TestMean))
+
+#Scoring <- function(TestParameter){
+#  obj <-  obj %>% arrange(abs(TestParameter)) #TestPara is a placeholder - check descend
+#  name <- paste("Score", TestParameter, sep = "")
+#  obj$name <- 1:5
+#  return(obj)
+#}
+
+#TestParameter <- c('TestMean','TrainMean', 'DiffTrainTest', 'AIC')
+
+#for (i in TestParameter){
+# Scoring(i)
+#}
+
+```
+
+Trying to plot interaction:
+
+```{r}
+
+model <- gcm3
+summary(gcm3)
+
+model <- lme4::lmer(CHI_MLU ~ I(VISIT)^2 * Diagnosis + vIQ1 + (1 + I(VISIT)^2 | ID), sub_df, REML = F)
+
+summary(model)
+
+l <- ggline(sub_df,
+       x = "VISIT",
+       y = "CHI_MLU",
+       col = "Diagnosis",
+       add = c("mean_se", "dodge"),
+       palette = "jco") + ggtitle("Development of Child MLU illustrated with interaction 
+between Diagnosis and Visit (time)")
+
+#Trying something
+sub_df <- sub_df %>% 
+  mutate(VISIT_exp2 = VISIT^2)
+
+t <- ggline(sub_df,
+       x = "VISIT_exp2",
+       y = "CHI_MLU",
+       col = "Diagnosis",
+       add = c("mean_se", "dodge"),
+       palette = "jco") + ggtitle("Development of Child MLU described with an interaction 
+       between Diagnosis and Visit (time)")
+
+t
+l
+sub_df$VISIT_exp2
+# NO difference
+
+
+```
 
 
 
