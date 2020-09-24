@@ -1,8 +1,10 @@
 ---
 title: "Assignment 2 - Language Development in ASD - Making predictions"
-author: "Riccardo Fusaroli"
-date: "August 9, 2019"
-output: html_document
+author: "Søren Orm Hansen"
+date: "September, 2020"
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -43,20 +45,25 @@ How did your models from last time perform? In this exercise you have to compare
 - create the test dataset (apply the code from assignment 1 to clean up the 3 test datasets)
 - test the performance of the models on the test data (Tips: google the functions "predict()")
 - optional: predictions are never certain, can you identify the uncertainty of the predictions? (e.g. google predictinterval())
+```{r}
+# Loading packages
+library(pacman)
+pacman::p_load(readr, lmerTest, Metrics, caret, merTools, tidyverse, ggpubr)
+```
+
+```{r}
+# Load test data
+LU_test <- read_csv('LU_test.csv')
+
+token_test <- read_csv('token_test.csv')
+
+demo_test <- read_csv('demo_test.csv')
+
+```
 
 
-```{r, include = FALSE}
-
-pacman::p_load(readr,dplyr,stringr,lmerTest,Metrics,caret, tidyverse, lme4, caret, merTools)
-
-## Load data
-Demo <- read_csv("demo_test.csv")
-LU <- read_csv("LU_test.csv")
-Word <- read_csv("token_test.csv")
-
+```{r}
 ## Clean up function, included to inspire you
-
-
 CleanUpData <- function(Demo, LU, Word) {
   Speech <- merge(LU, Word) %>%
     rename(ID = SUBJ) %>%
@@ -112,19 +119,19 @@ CleanUpData <- function(Demo, LU, Word) {
   
   return(Data)
 }
-clean_test_df <- CleanUpData(Demo, LU, Word)
-cleanedData <- read_csv("cleanedData.csv")
+```
 
+```{r}
 # Load training Data
-#Just imported the dataframe manually
-df_train <- cleanedData
+df_train <- read_csv('cleanedData.csv')
 
-#- recreate the models you chose last time (just write the code again and apply it to Train Data)
-model1 <- lmerTest::lmer(CHI_MLU ~ Diagnosis*VISIT + vIQ1 + (1+VISIT|ID), df_train, REML = F)
-sum <- summary(model1)
-sum
+# recreate the models you chose last time (just write the code again and apply it to Train Data)
+m <- lmer(CHI_MLU ~
+            Diagnosis * VISIT + vIQ1 +
+            (1 + VISIT | ID),
+          df_train, REML = F)
 
-gcm <- lmerTest::lmer(CHI_MLU ~
+gcm <- lmer(CHI_MLU ~
                I(VISIT)^2 * Diagnosis + vIQ1 +
                (1 | ID),
              df_train, REML = F)
@@ -135,56 +142,49 @@ gcm <- lmerTest::lmer(CHI_MLU ~
 sub_df_train <- df_train %>%
   dplyr::select(c(ID, CHI_MLU, VISIT, vIQ1, Diagnosis)) %>%
   na.omit() %>% 
-  mutate(pred_CHI_MLU_m = fitted(model1),
+  mutate(pred_CHI_MLU_m = fitted(m),
          pred_CHI_MLU_gcm = fitted(gcm))
 
-rmse_model1 <- rmse(sub_df_train$CHI_MLU, sub_df_train$pred_CHI_MLU_m) # rmse = 0.355
-rmse_model1
-
+rmse_m <- rmse(sub_df_train$CHI_MLU, sub_df_train$pred_CHI_MLU_m) # rmse = 0.355
 rmse_gcm <- rmse(sub_df_train$CHI_MLU, sub_df_train$pred_CHI_MLU_gcm) # rmse = 0.416
-rmse_gcm
 
 ```
-
 
 ```{r}
 #- create the test dataset (apply the code from assignment 1 or my function to clean up the 3 test datasets)
 # Test data
-df_test <- clean_test_df
+
+df_test <- CleanUpData(demo_test, LU_test, token_test)
 
 #- test the performance of the models on the test data (Tips: google the functions "predict()")
 
-# Subsetting interesting variables and omiting na's + predicting the values using the predict function
-sub_df_test <- df_test %>%
-  dplyr::select(c(ID, CHI_MLU, VISIT, vIQ1, Diagnosis)) %>%
+# Subsetting interesting variables and omitting NAs and predicting the values using the predict function
+sub_df_test <- df_test  %>% 
+  dplyr::select(c(ID, CHI_MLU, VISIT, vIQ1, Diagnosis)) %>% 
   na.omit()
 
 sub_df_test <- sub_df_test %>% 
-  mutate(pred_CHI_MLU_m = predict(model1, newdata = sub_df_test), 
-         pred_CHI_MLU_gcm = predict(gcm, newdata = sub_df_test))
+  mutate(pred_CHI_MLU_m = predict(m, newdata = sub_df_test), 
+         pred_CHI_MLU_gcm = predict(gcm, newdata = sub_df_test)) 
+
+
 
 rmse(sub_df_test$CHI_MLU, sub_df_test$pred_CHI_MLU_m) # rmse = 0.726
 rmse(sub_df_test$CHI_MLU, sub_df_test$pred_CHI_MLU_gcm) # rmse = 0.703
 
 #- optional: predictions are never certain, can you identify the uncertainty of the predictions? (e.g. google predictinterval())
 
-intFit <- predictInterval(model1, newdata = sub_df_test) %>% 
+intFit <- merTools::predictInterval(m, newdata = sub_df_test) %>% 
   mutate(ID = sub_df_test$ID, obs = 1:35)
-
 
 intFit %>% 
   ggplot(aes( x = obs, y = fit, ymin = lwr, ymax = upr, color = ID)) + 
   geom_point() + 
   geom_linerange() +
-  scale_color_gradientn(colours = rainbow(5)) +
-  labs(x = "Visit", y = "Prediction w/ 95% PI") + theme_minimal()
+  scale_color_gradientn(colours = rainbow(6)) +
+  labs(x = "Observation", y = "Prediction w/ 95% PI", title = 'Predictions of test data with uncertainty') + 
+  theme_minimal()
 
-intFit %>%
-  ggplot(aes( x = obs, y = fit, ymin = lwr, ymax = upr)) + 
-  geom_point(aes(color = ID)) + 
-  geom_linerange(aes(color = ID)) +
-  scale_colour_gradient(low = "yellow", high = "red") +
-  labs(x = "Visit", y = "Prediction w/ 95% PI") + theme_minimal()
 ```
 
 [HERE GOES YOUR ANSWER]
@@ -198,6 +198,7 @@ In this exercise you have to use cross-validation to calculate the predictive er
 - Use cross-validation to compare your model from last week with the basic model (Child MLU as a function of Time and Diagnosis, and don't forget the random effects!)
 - (Tips): google the function "createFolds";  loop through each fold, train both models on the other folds and test them on the fold)
 
+
 - Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
 
 - Bonus Question 1: What is the effect of changing the number of folds? Can you plot RMSE as a function of number of folds?
@@ -206,167 +207,139 @@ In this exercise you have to use cross-validation to calculate the predictive er
 
 ```{r}
 #- Create the basic model of ChildMLU as a function of Time and Diagnosis (don't forget the random effects!).
-#merging the datasets to include the test data as well
-df_total <- merge(cleanedData, clean_test_df, all = T)
 
-#Defining a function to mena-center the column CHI_MLU
-center_scale <- function(x) {
-    scale(x, scale = FALSE)
-}
+# Train ID ends at 66 - test ID should start at 67
+df_test$ID <- df_test$ID + 66
 
-df_total$CHI_MLU_centered <- center_scale(df_total$CHI_MLU)
+# Making a df with both the train and test data
+df_tot <- merge(df_test, df_train, all = T)
 
+# Make a cross-validated version of the model. (Tips: google the function "createFolds";  loop through each fold, train a model on the other folds and test it on the fold)
 
-
-basic_model <- lmer(CHI_MLU ~ Diagnosis*VISIT + (1+VISIT|ID), df_train, REML = F)
-
-#Making a model on mean-centered data to see what happens
-model_non_centered <- lmer(CHI_MLU ~ VISIT * Diagnosis + vIQ1 + (1+VISIT|ID), df_total)
-
-model_centered <- lmer(CHI_MLU_centered ~ VISIT * Diagnosis + vIQ1 + (1+VISIT|ID), df_total) #Fails to converge..
-
-#- Make a cross-validated version of the model. (Tips: google the function "createFolds";  loop through each fold, train a model on the other folds and test it on the fold)
-
-#Making subset of the data that matches the predictors from the basic model
-sub_df_train1 <- sub_df_train %>% 
-  dplyr::select(c(ID, CHI_MLU, VISIT, Diagnosis, vIQ1)) %>%
+# Subsetting the total df with only the values we use in the models
+sub_df1 <- df_tot %>% 
+  dplyr::select(c(ID, CHI_MLU, VISIT, Diagnosis, vIQ1)) %>% 
   na.omit()
 
-#Classifying the number of folds
-k = 10
-folds <- createFolds(unique(sub_df_train1$ID), k = k, list = TRUE, returnTrain = FALSE)
-
-#Specifying where I want the results
-trainRMSE <- rep(NA, k)
-testRMSE <- rep(NA, k)
-
-#Making the loop
-'i = 1
-for (fold in folds){
-  train = subset(sub_df_train1, !(ID %in% fold))
-  test = subset(sub_df_train1, ID %in% fold)
-  model = lmer(CHI_MLU ~ Diagnosis*VISIT + (1+VISIT|ID), train)
-  test$prediction = predict(model, test, allow.new.levels = TRUE)
-  train$prediction = fitted(model)
-  trainRMSE[i] = rmse(train$CHI_MLU, fitted(model))
-  testRMSE[i] = rmse(test$CHI_MLU, test$prediction)
-  i = i+1
-}
-
-trainRMSE
-testRMSE'
-
-#USING SØREN'S CODE TO BULD A FUNCTION:
-
+# We are going to be folding a lot - let's make a function with model syntax as the input, so we can loop through a list of the different model syntaxes we want to compare
 folding <- function(syntax){
+  k = 10 # number of folds
+  folds <- createFolds(unique(sub_df1$ID), k = k, list = TRUE, returnTrain = FALSE) # creating the folds
+  trainRMSE <- rep(NA, k) # preparing slot for saving RMSE's for the training folds
+  testRMSE <- rep(NA, k) # preparing slot for saving RMSE's for the testing folds
+  AIC = rep(NA, k) # preparing slot for saving AIC's for the models build on the training folds
 
-k = 20
-
-folds <- createFolds(unique(sub_df_train1$ID), k = k, list = TRUE, returnTrain = FALSE)
-
-trainRMSE <- rep(NA, k)
-testRMSE <- rep(NA, k)
-AIC = rep(NA, k)
-
-i = 1
+i = 1 # creating value for indexing the different loops
 for (fold in folds) {
-  train = subset(sub_df_train1,!(ID %in% fold))
-  test = subset(sub_df_train1, ID %in% fold)
-  model = lmer(syntax, train, REML = F)
-  test$prediction = predict(model, test, allow.new.levels = TRUE)
-  train$prediction = fitted(model)
-  trainRMSE[i] = rmse(train$CHI_MLU, fitted(model))
-  testRMSE[i] = rmse(test$CHI_MLU, test$prediction)
-  AIC[i] = summary(model)[["AICtab"]][["AIC"]]
+  train = subset(sub_df1,!(ID %in% fold)) # subsetting the training data for the folds
+  test = subset(sub_df1, ID %in% fold) # subsetting the test data for the folds
+  model = lmer(syntax, train, REML = F) # defining the model
+  test$prediction = predict(model, test, allow.new.levels = TRUE) # predicting new values for test data
+  train$prediction = fitted(model) # predicting new values for training data
+  trainRMSE[i] = rmse(train$CHI_MLU, fitted(model)) # saving RMSE value for the training data at index i
+  testRMSE[i] = rmse(test$CHI_MLU, test$prediction) # saving RMSE value for the test data at index i
+  AIC[i] = summary(model)[["AICtab"]][["AIC"]] # saving AIC value for the model at index i
   i = i + 1
 }
-AIC_mean = mean(AIC)
-m_train = mean(trainRMSE)
-m_test = mean(testRMSE)
-DiffTrainTest = m_train - m_test
-return(c(AIC_mean, m_train, m_test, DiffTrainTest))
+  AIC_mean = mean(AIC) # finding the AIC mean 
+  m_train = mean(trainRMSE) # finding the RMSE mean for the training data
+  m_test = mean(testRMSE) # finding the RMSE mean for the test data
+  DiffTrainTest = m_train - m_test  # finding the difference in the RMSE mean for the training and the test data
+return(c(AIC_mean, m_train, m_test, DiffTrainTest)) # specifying what we want the function to return
 }
-#- Report the results and comment on them. 
 
-#- Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
-#####SEE SØREN'S CODE###############
-
-# Bonus Question 1: What is the effect of changing the number of folds? Can you plot RMSE as a function of number of folds?
-# Bonus Question 2: compare the cross-validated predictive error against the actual predictive error on the test data
 ```
 
 ```{r}
-####SØREN'S CODE FOR ASSESSING DIFFERNT MODELS ACCORDING TO THEIR RMSE######
-obj <- matrix(0, ncol = 5, nrow = 5) %>% data.frame()
+# saving the syntax of our models
+m1 <-  CHI_MLU ~ Diagnosis + VISIT + vIQ1 + (1 + VISIT | ID)
+m2 <-  CHI_MLU ~ Diagnosis * VISIT + vIQ1 + (1 + VISIT | ID)
 
+gcm1 <- CHI_MLU ~ I(VISIT^2) + Diagnosis + vIQ1 + (1 | ID)
+gcm2 <- CHI_MLU ~ I(VISIT^2) * Diagnosis + vIQ1 + (1 | ID)
+#gcm3 <- CHI_MLU ~ I(VISIT^2) * Diagnosis + vIQ1 + (1 + I(VISIT^2) | ID) # doesn't converge
+
+# storing the syntax and names of our models so we can loop through them
+models <- c(m1, m2, gcm1, gcm2)
+names <- c('m1', 'm2', 'gcm1', 'gcm2')
+
+# creating place holder df for the loop
+obj <- matrix(0, ncol = 5, nrow = 4) %>% data.frame()
+
+# chaning the col-names in our place holder df
 colnames(obj)[1] <- 'ModelNames'
 colnames(obj)[2] <- 'AICMean'
 colnames(obj)[3] <- 'TrainMean'
 colnames(obj)[4] <- 'TestMean'
 colnames(obj)[5] <- 'DiffTrainTest'
 
-#Writing the syntax for the different models, to use in the folding function
-
-m1 <-  CHI_MLU ~
-  Diagnosis + VISIT + vIQ1 +
-  (1 + VISIT | ID)
-m2 <-  CHI_MLU ~ Diagnosis * VISIT + vIQ1 +
-  (1 + VISIT | ID)
-
-#More syntax
-gcm1 <- CHI_MLU ~ I(VISIT) ^ 2 + Diagnosis + vIQ1 + (1 | ID)
-gcm2 <- CHI_MLU ~ I(VISIT) ^ 2 * Diagnosis + vIQ1 + (1 | ID)
-gcm3 <-
-  CHI_MLU ~ I(VISIT) ^ 2 * Diagnosis + vIQ1 + (1 + I(VISIT) ^ 2 | ID)
-
-models <- c(m1, m2, gcm1, gcm2, gcm3)
-names <- c('m1', 'm2', 'gcm1', 'gcm2', 'gcm3')
-
-
+# creating a place holder for the mean scores for looping through the folding function 20 times
 m_scores <- matrix(0, ncol = 20, nrow = 1) %>% data.frame()
-'
-for(j in 1:20){
-  
-i = 1
+```
 
-for (model in models) {
-  obj[i, 1] <- names[i]
-  obj[i, 2:5] <- folding(model)
-  i = i + 1
-}
-
-# Report the results and comment on them.
-
-
+```{r}
 # Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
 
+# looping through the folding function 20 times
+for(j in 1:20) {
+  
+i = 1 # indexing at i
 
+for (model in models) {
+  obj[i, 1] <- names[i] # saving the name of the models
+  obj[i, 2:5] <- folding(model) # using the folding function to find the AIC, RMSE means for training and test data, and difference between the two
+  i = i + 1 # increasing index by 1
+}
+
+# arranging absolute values in ascending order and scoring from 1 to 4 points for AIC, RMSE means for training and test data, and difference between the two
 obj <- obj %>% arrange(abs(TestMean))
-obj$ScoreTestMean <- 1:5
+obj$ScoreTestMean <- 1:4
 
 obj <- obj %>% arrange(abs(TrainMean))
-obj$ScoreTrainMean <- 1:5
+obj$ScoreTrainMean <- 1:4
 
 obj <- obj %>% arrange(abs(DiffTrainTest))
-obj$ScoreDiffTrainTest <- 1:5
+obj$ScoreDiffTrainTest <- 1:4
 
 obj <- obj %>% arrange(abs(AICMean))
-obj$ScoreAIC <- 1:5
+obj$ScoreAIC <- 1:4
 
+# finding the sum of the points and arranging by that sum
 obj <-
   obj %>% group_by(ModelNames) %>% mutate(Score = sum(ScoreTestMean, ScoreTrainMean, ScoreDiffTrainTest, ScoreAIC))
 obj <- obj %>% arrange(abs(Score))
 
-m_scores[1, j] <- obj[1,1]
+# saving only the lowest scoring model (the best model) from each loop
+m_scores[1, j] <- obj[1, 1]
 }
-'
-#This for-loop doesn't really work.. Error: "Error: Invalid grouping factor specification, ID"
+
+# finding the counts of different 'winning' models 
+table(unlist(m_scores))
 
 # Bonus Question 1: What is the effect of changing the number of folds? Can you plot RMSE as a function of number of folds?
 
-
-
 # Bonus Question 2: compare the cross-validated predictive error against the actual predictive error on the test data
+```
+```{r}
+# building the best model
+m2 <-  lmer(CHI_MLU ~ Diagnosis * VISIT + vIQ1 +
+  (1 + VISIT | ID), df_tot, REML = F)
+
+# summary of the best model
+summary(m2)
+```
+
+```{r}
+# plotting the interaction
+l <- ggline(df_tot,
+       x = "VISIT",
+       y = "CHI_MLU",
+       col = "Diagnosis",
+       add = c("mean_se", "dodge"),
+       palette = "jco") + ggtitle("Development of Child MLU illustrated with interaction 
+between Diagnosis and Visit (time)")
+
+l
 ```
 
 
@@ -385,8 +358,9 @@ You want to evaluate:
 - how does the child fare compared to the model predictions at Visit 6? Is the child below or above expectations? (tip: use the predict() function on Bernie's data only and compare the prediction with the actual performance of the child)
 
 ```{r}
+
 #cleaning up data without removing names
-CleanUpData1 <- function(Demo, LU, Word) {
+CleanUpData <- function(Demo, LU, Word) {
   Speech <- merge(LU, Word) %>%
     rename(ID = SUBJ) %>%
     mutate(VISIT = as.numeric(str_extract(VISIT, "\\d")), ID = gsub("\\.", "", ID)) %>%
@@ -440,32 +414,19 @@ CleanUpData1 <- function(Demo, LU, Word) {
   return(Data)
 }
 
-
-
 ```
 
-
 ```{r}
-demo_test <- read_csv("demo_test.csv")
-LU_test <- read_csv("LU_test.csv")
-token_test <- read_csv("token_test.csv")
-df_test_bernie <- CleanUpData1(demo_test, LU_test, token_test)
-
-#Making a model for bernie.
-m <- lmer(CHI_MLU ~
-            Diagnosis * VISIT + vIQ1 +
-            (1 + VISIT | ID),
-          df_train, REML = F)
-
-
+df_test_bernie <- CleanUpData(demo_test, LU_test, token_test)
 
 #extracting Bernie
 bernie <- df_test_bernie %>% filter(ID == "Bernie")
 bernie1 <- bernie
+
 #df without Bernie
 notbernie <- df_test_bernie %>% filter(ID != "Bernie")
-#merging one big dataset without Bernie
 
+#merging one big dataset without Bernie
 bernie_df <- merge(notbernie, df_train, all = T)
 
 #extracting only TD children
@@ -479,7 +440,7 @@ MLUpervisit <-
   group_by(VISIT) %>% 
   summarise(mean(CHI_MLU, na.rm = T))
 
-MLUpervisit$ID <- ("mean of TD")
+MLUpervisit$ID <- ("mean")
 
 colnames(MLUpervisit)[2] <- "CHI_MLU"
 
@@ -494,8 +455,6 @@ ggplot(comparativeMLU, aes(x = VISIT, y = CHI_MLU, color = ID)) +
   geom_point() +
   geom_smooth(method = lm) +
   ggtitle("Mean length of utterances per visit in TD children versus Bernie")
-
-
 
 #making a dataframe to subtract and compare mean values per visit
 comparativeMLU <- cbind(MLUpervisit, bernie)
@@ -525,8 +484,8 @@ predict(m, bernievisit6, allow.new.levels = T)
 #general rmse predicition for all visits, just for funs
 berniepredictions <- predict(m, bernie1, allow.new.levels = T)
 rmse(bernie1$CHI_MLU, berniepredictions)
-
 ```
+
 
 [HERE GOES YOUR ANSWER]
 

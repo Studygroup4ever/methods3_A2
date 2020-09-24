@@ -46,7 +46,7 @@ How did your models from last time perform? In this exercise you have to compare
 ```{r}
 # Loading packages
 library(pacman)
-pacman::p_load(readr, dplyr, stringr, lmerTest, Metrics, caret, merTools)
+pacman::p_load(readr, dplyr, stringr, lmerTest, Metrics, caret, merTools, tidyverse)
 ```
 
 ```{r}
@@ -235,14 +235,16 @@ i = 1
 for (fold in folds) {
   train = subset(sub_df1,!(ID %in% fold))
   test = subset(sub_df1, ID %in% fold)
-  model = lmer(syntax, train)
+  model = lmer(syntax, train, REML = F)
+  sum = summary(model)
+  AIC = sum[["AICtab"]][["AIC"]]
   test$prediction = predict(model, test, allow.new.levels = TRUE)
   train$prediction = fitted(model)
   trainRMSE[i] = rmse(train$CHI_MLU, fitted(model))
   testRMSE[i] = rmse(test$CHI_MLU, test$prediction)
   i = i + 1
 }
-return(c(trainRMSE, testRMSE))
+return(c(trainRMSE, testRMSE, AIC))
 }
 
 ```
@@ -250,45 +252,74 @@ return(c(trainRMSE, testRMSE))
 ```{r}
 
 m1 <-  CHI_MLU ~
-            Diagnosis + VISIT + vIQ1 +
-            (1 + VISIT | ID)
+  Diagnosis + VISIT + vIQ1 +
+  (1 + VISIT | ID)
+m2 <-  CHI_MLU ~ Diagnosis * VISIT + vIQ1 +
+  (1 + VISIT | ID)
 
-m2 <-  CHI_MLU ~ Diagnosis*VISIT + vIQ1 +
-            (1 + VISIT | ID)
 
-
-gcm1 <- CHI_MLU ~ I(VISIT)^2 + Diagnosis + vIQ1 + (1 | ID)
-
-gcm2 <- CHI_MLU ~ I(VISIT)^2 * Diagnosis + vIQ1 + (1 | ID)
-
-gcm3 <- CHI_MLU ~ I(VISIT)^2 * Diagnosis + vIQ1 + (1 + I(VISIT)^2 | ID)
+gcm1 <- CHI_MLU ~ I(VISIT) ^ 2 + Diagnosis + vIQ1 + (1 | ID)
+gcm2 <- CHI_MLU ~ I(VISIT) ^ 2 * Diagnosis + vIQ1 + (1 | ID)
+gcm3 <-
+  CHI_MLU ~ I(VISIT) ^ 2 * Diagnosis + vIQ1 + (1 + I(VISIT) ^ 2 | ID)
 
 models <- c(m1, m2, gcm1, gcm2, gcm3)
 names <- c('m1', 'm2', 'gcm1', 'gcm2', 'gcm3')
 
-obj <- matrix(0, ncol = 13, nrow = 5) %>% data.frame()
+obj <- matrix(0, ncol = 19, nrow = 5) %>% data.frame()
+
+for (i in 2:7) {
+  colnames(obj)[i] <- paste("TrainFold", i - 1, sep = "")
+  colnames(obj)[i + 6] <- paste("TestFold", i - 1, sep = "")
+}
+
+colnames(obj)[1] <- 'ModelNames'
+colnames(obj)[14] <- 'AIC'
+colnames(obj)[15] <- 'TrainMean'
+colnames(obj)[16] <- 'TrainSpread'
+colnames(obj)[17] <- 'TestMean'
+colnames(obj)[18] <- 'TestSpread'
+colnames(obj)[19] <- 'DiffTrainTest'
 
 i = 1
 
-for(model in models){
-  obj[i,1] <- names[i]
-  obj[i, 2:13] <- folding(model)
+for (model in models) {
+  obj[i, 1] <- names[i]
+  obj[i, 2:14] <- folding(model)
   i = i + 1
 }
 
-for(i in 2:7){
-  colnames(obj)[i] <- paste("Train_Fold_", i - 1)
-  colnames(obj)[i + 6] <- paste("Test_Fold_", i - 1)
+# Report the results and comment on them.
+
+for (i in 1:5) {
+  obj[i, 15] <- mean(as.numeric(obj[i, 2:7]))
+  obj[i, 16] <- max(obj[i, 2:7]) - min(obj[i, 2:7])
+  obj[i, 17] <- mean(as.numeric(obj[i, 8:13]))
+  obj[i, 18] <- max(obj[i, 8:13]) - min(obj[i, 8:13])
+  obj[i, 19] <- obj[i, 15] - obj[i, 17]
 }
-
-obj
-
-# Report the results and comment on them. 
-
-
 
 
 # Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
+
+
+obj <- obj %>% arrange(abs(TestMean))
+obj$ScoreTestMean <- 1:5
+
+obj <- obj %>% arrange(abs(TrainMean))
+obj$ScoreTrainMean <- 1:5
+
+obj <- obj %>% arrange(abs(DiffTrainTest))
+obj$ScoreDiffTrainTest <- 1:5
+
+obj <- obj %>% arrange(abs(AIC))
+obj$ScoreAIC <- 1:5
+
+obj <-
+  obj %>% group_by(ModelNames) %>% mutate(Score = sum(ScoreTestMean, ScoreTrainMean, ScoreDiffTrainTest, ScoreAIC))
+obj <- obj %>% arrange(abs(Score))
+
+# bias decreases
 
 # Bonus Question 1: What is the effect of changing the number of folds? Can you plot RMSE as a function of number of folds?
 
@@ -311,6 +342,136 @@ You want to evaluate:
 
 ```{r}
 
+#cleaning up data without removing names
+CleanUpData <- function(Demo, LU, Word) {
+  Speech <- merge(LU, Word) %>%
+    rename(ID = SUBJ) %>%
+    mutate(VISIT = as.numeric(str_extract(VISIT, "\\d")), ID = gsub("\\.", "", ID)) %>%
+    dplyr::select(ID,
+                  VISIT,
+                  MOT_MLU,
+                  CHI_MLU,
+                  types_MOT,
+                  types_CHI,
+                  tokens_MOT,
+                  tokens_CHI)
+  
+  Demo <- Demo %>%
+    dplyr::select(
+      Child.ID,
+      Visit,
+      Ethnicity,
+      Diagnosis,
+      Gender,
+      Age,
+      ADOS,
+      MullenRaw,
+      ExpressiveLangRaw,
+      Socialization
+    ) %>% rename(ID = Child.ID, VISIT = Visit) %>% 
+    mutate(ID = gsub("\\.", "", ID))
+  
+  Data = merge(Demo, Speech, all = T)
+  
+  Data1 = Data %>%
+    subset(VISIT == "1") %>%
+    dplyr::select(ID, ADOS, ExpressiveLangRaw, MullenRaw, Socialization) %>%
+    rename(
+      ADOS1 = ADOS,
+      vIQ1 = ExpressiveLangRaw,
+      nvIQ1 = MullenRaw,
+      Socialization1 = Socialization
+    )
+  
+  Data = merge(Data, Data1, all = T) %>%
+    mutate(
+      VISIT = as.numeric(as.character(VISIT)),
+      Gender = recode(Gender,
+                      "1" = "M",
+                      "2" = "F"),
+      Diagnosis = recode(Diagnosis,
+                         "A"  = "ASD",
+                         "B"  = "TD")
+    )
+  
+  return(Data)
+}
+
+```
+
+```{r}
+
+df_test_bernie <- CleanUpData(demo_test, LU_test, token_test)
+
+
+
+
+#extracting Bernie
+bernie <- df_test_bernie %>% filter(ID == "Bernie")
+bernie1 <- bernie
+#df without Bernie
+notbernie <- df_test_bernie %>% filter(ID != "Bernie")
+#merging one big dataset without Bernie
+
+bernie_df <- merge(notbernie, df_train, all = T)
+
+#extracting only TD children
+bernie_df <- bernie_df %>% filter(Diagnosis == "TD")
+
+#how does the child fare in ChildMLU compared to the average TD child at each visit? Define the distance in terms of absolute difference between this Child and the average TD
+
+#dataframe with means per visit of MLU
+MLUpervisit <-
+  bernie_df %>% 
+  group_by(VISIT) %>% 
+  summarise(mean(CHI_MLU, na.rm = T))
+
+MLUpervisit$ID <- ("mean")
+
+colnames(MLUpervisit)[2] <- "CHI_MLU"
+
+#extracting relevant columns Bernie
+bernie1 <- bernie %>% dplyr::select(ID, CHI_MLU, VISIT, Diagnosis, vIQ1)
+bernie <- bernie %>% dplyr::select(ID, CHI_MLU, VISIT)
+
+comparativeMLU <- rbind(MLUpervisit, bernie)
+
+#PLOTTING!
+ggplot(comparativeMLU, aes(x = VISIT, y = CHI_MLU, color = ID)) +
+  geom_point() +
+  geom_smooth(method = lm) +
+  ggtitle("Mean length of utterances per visit in TD children versus Bernie")
+
+
+
+#making a dataframe to subtract and compare mean values per visit
+comparativeMLU <- cbind(MLUpervisit, bernie)
+colnames(comparativeMLU) <-
+  c("VISIT_mean",
+    "MEAN_MLU",
+    "mean_ID",
+    "Bernie_ID",
+    "Bernie_MLU",
+    "VISIT_bernie")
+
+comparativeMLU$MEAN_MLU <- as.numeric(comparativeMLU$MEAN_MLU)
+comparativeMLU$Bernie_MLU <- as.numeric(comparativeMLU$Bernie_MLU)
+
+#subtracting the MLUs to compare
+comparativeMLU <-
+  comparativeMLU %>% mutate(difference = Bernie_MLU - MEAN_MLU)
+
+#2 
+
+#Filtering only visit 6 for Bernie
+bernievisit6 <- bernie1 %>% filter(VISIT == 6)
+
+#predicting MLU value for Bernie at visit 6
+predict(m, bernievisit6, allow.new.levels = T)
+
+#general rmse predicition for all visits, just for funs
+berniepredictions <- predict(m, bernie1, allow.new.levels = T)
+rmse(bernie1$CHI_MLU, berniepredictions)
 ```
 
 
