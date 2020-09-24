@@ -67,9 +67,38 @@ summary(model1)
 ##Testing the power of the model estimates, starting with interaction.
 #1- if we trust the estimates of the current study. Report the power analysis and comment on what you can (or cannot) use its estimates for.
 
-power_interaction <- powerSim(model1, fixed("VISIT:Diagnosis"))
-power_interaction
+power_interaction <- powerSim(model1, fixed("VISIT:Diagnosis"), nsim = 100)
+power_interaction #100 power
 
+#If I want to make a power calculation of the main effects i can make a model excluding the interaction term, allowing me to assess each main effect.
+
+
+```
+```{r}
+#2- if we are skeptical of the current study. Report the power analysis and comment on what you can (or cannot) use its estimates for.
+
+#The power for the interaction term was 100% which is pretty high. We need to estimate if this is because the estimate is pretty high, making the effect "easy" to find. If the estimate was lower, the power of the model (interaction term) would be lower.
+
+#For example
+model2 <- model1
+
+#Changing the estimate of the model to a lower value 0.25 --> 0.1
+fixef(model2)["VISIT:DiagnosisTD"] <- 0.1
+
+#Running the power analysis again
+power_interaction2 <- powerSim(model2, fixed("VISIT:Diagnosis"), nsim = 100)
+power_interaction2 #83.00%
+
+
+```
+```{r}
+#3- if we only have access to 30 participants. Identify the power for each relevant effect and discuss whether it's worth to run the study and why. The list above is also what you should discuss in your code-less report.
+
+#Looking at the power from our number of participants
+curve_interaction_ID <- powerCurve(model1, fixed("VISIT:Diagnosis"), nsim = 10, along = "ID")
+plot(curve_interaction_ID)
+
+#It seems we would need only about 20 participants to get the required power of 80%, to find the effect of 0.25. 
 ```
 
 
@@ -83,6 +112,8 @@ How would you perform a more conservative power analysis?
 - Report the power analysis and comment on what you can (or cannot) use its estimates for.
 
 ```{r}
+#We have to look online for minimum effect sizes that we'd expect.
+
 
 ```
 
