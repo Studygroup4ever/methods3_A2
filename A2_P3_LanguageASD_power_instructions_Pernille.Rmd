@@ -9,6 +9,10 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r}
+library(simr)
+```
+
 ## Welcome to the third exciting part of the Language Development in ASD exercise
 
 In this part of the assignment, we try to figure out how a new study should be planned (i.e. how many participants?) in order to have enough power to replicate the findings (ensuring our sample size is adequate, our alpha at 0.05 and our beta at 0.8):
@@ -27,8 +31,57 @@ The list above is also what you should discuss in your code-less report.
 
 How much power does your study have (if your model estimates are quite right)?
 - Load your dataset (both training and testing), fit your favorite model, assess power for your effects of interest (probably your interactions).
+
+```{r}
+df_train <- read.csv("cleanedData.csv")
+df_test <- read.csv("cleanedDataTest.csv")
+
+# Adding 66
+df_test$ID <- df_test$ID+66
+df_test
+df <- merge(df_train,df_test, all = T)
+
+sub_df <- df %>% 
+  dplyr::select(CHI_MLU, Diagnosis, VISIT, vIQ1,ID) %>% 
+  na.omit()
+
+m2 <- lmer(CHI_MLU ~
+            Diagnosis * VISIT + vIQ1 + 
+            (1 + VISIT | ID), 
+          sub_df, REML = F)
+
+```
+
+## EFFECT SIZE
+```{r}
+
+summary(m2)
+# Interaction estimate: #0.2517469
+
+```
+
+If the effect is real, would we have enough power to expect a positive result? 
+
+```{r}
+
+# What is the current effect size for the interaction? 
+fixef(m2)["DiagnosisTD:VISIT"] #0.2517469
+
+power_int <- powerSim(m2, fixed("Diagnosis:VISIT"), nsim = 10)
+
+print(power_int) #100%
+
+power_vIQ <- powerSim(m2, fixed("vIQ1"), nsim = 10)
+
+print(power_vIQ) #100%
+
+```
+
 - Report the power analysis and comment on what you can (or cannot) use its estimates for.
+
 - Test how many participants you would have to have to replicate the findings (assuming the findings are correct)
+
+
 
 N.B. Remember that main effects are tricky once you have interactions in the model (same for 2-way interactions w 3-way interactions in the model). If you want to test the power of main effects, run a model excluding the interactions.
 N.B. Check this paper: https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.12504
