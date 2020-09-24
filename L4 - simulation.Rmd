@@ -31,11 +31,10 @@ CALCULATE POWER FOR VISIT
 ```{r}
 
 powerV <- powerSim(m, fixed("VISIT"), nsim = 50) #running 50 simulations, seeing the power of VISIT
-powerD5 <- powerSim(m, fixed("Diagnosis"), nsim = 5)
+powerD <- powerSim(m, fixed("Diagnosis"), nsim = 50)
 
 powerV #100%
-powerD50 #22% w 50 sim
-powerD5 #80% w 5 sim
+powerD
 
 ```
 

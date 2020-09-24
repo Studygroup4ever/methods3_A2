@@ -282,6 +282,7 @@ gcm1 <- CHI_MLU ~ I(VISIT)^2 + Diagnosis + vIQ1 + (1 | ID)
 gcm2 <- CHI_MLU ~ I(VISIT)^2 * Diagnosis + vIQ1 + (1 | ID)
 
 gcm3 <- CHI_MLU ~ I(VISIT)^2 * Diagnosis + vIQ1 + (1 + I(VISIT)^2 | ID)
+
 ```
 
 
@@ -316,7 +317,6 @@ gcm3 <- lmer(CHI_MLU ~ I(VISIT)^2 * Diagnosis + vIQ1 + (1 + I(VISIT)^2 | ID), df
 
 
 ```
-
 
 Then try to find the best possible predictive model of ChildMLU, that is, the one that produces the lowest information criterion.
 ```{r}
