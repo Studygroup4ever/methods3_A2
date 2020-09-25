@@ -38,6 +38,34 @@ You will be using:
 - extend() to simulate more participants
 
 ```{r}
+data1 <- read.csv("cleanedData.csv")
+
+data2 <- read.csv("cleanedDataTest.csv")
+data2$ID <- data2$ID+66
+data <- merge(data1, data2, all =T)
+
+pacman::p_load(simr, lme4)
+library(dplyr)
+library(simr)
+
+sub_df_uq <- datauq %>% 
+  dplyr::select(ID, CHI_MLU, Diagnosis,VISIT,vIQ1) %>% na.omit()
+
+model1 <- lmer(CHI_MLU~Diagnosis*VISIT + vIQ1 + (1+VISIT|ID), sub_df, REML = F)
+
+fixef(model1)["DiagnosisTD:VISIT"] <- 0.251747
+summary(model1)
+
+datauq <- data %>% filter(VISIT ==1)
+  
+t <- powerSim(model1, fixed("Diagnosis:VISIT"), nsim=5)
+print(t)
+
+
+
+pc1 <- powerCurve((model1), fixed("Diagnosis:VISIT"), nsim =10, along = "ID")
+print(pc1)
+plot(pc1)
 
 ```
 
@@ -52,7 +80,13 @@ How would you perform a more conservative power analysis?
 - Report the power analysis and comment on what you can (or cannot) use its estimates for.
 
 ```{r}
+fixef(model1)["DiagnosisTD:VISIT"] <- 
+  
+pc2 <- powerCurve((model1), fixed("Diagnosis:VISIT"), nsim =50, along = "ID")
+print(pc2)
+plot(pc2)
 
+model2 <- extend(model1, along="x", n=20)
 ```
 
 
