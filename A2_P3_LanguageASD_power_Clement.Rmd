@@ -61,6 +61,8 @@ sub_alldata <- alldata %>%
 #Making a beautiful model
 model1 <- lmer(CHI_MLU ~ VISIT*Diagnosis + vIQ1 + (1+VISIT|ID), sub_alldata, REML = F)
 summary(model1)
+
+model1_REML <- lmer(CHI_MLU ~ VISIT*Diagnosis + vIQ1 + (1+VISIT|ID), sub_alldata, REML = T)
 ```
 
 ```{r}
@@ -114,7 +116,17 @@ How would you perform a more conservative power analysis?
 ```{r}
 #We have to look online for minimum effect sizes that we'd expect.
 
+#The power for the interaction term was 100% which is pretty high. We need to estimate if this is because the estimate is pretty high, making the effect "easy" to find. If the estimate was lower, the power of the model (interaction term) would be lower.
 
+#For example
+model2 <- model1
+
+#Changing the estimate of the model to a lower value 0.25 --> 0.1
+fixef(model2)["VISIT:DiagnosisTD"] <- 0.1
+
+#Running the power analysis again
+power_interaction2 <- powerSim(model2, fixed("VISIT:Diagnosis"), nsim = 100)
+power_interaction2 #83.00%
 ```
 
 
@@ -123,5 +135,32 @@ How would you perform a more conservative power analysis?
 Assume you have only the resources to collect 30 kids (15 with ASD and 15 TDs). Identify the power for each relevant effect and discuss whether it's worth to run the study and why
 
 ```{r}
+#Here we want to run a power curve and see if the power of the estimate is sufficiently high at 30 participants
+summary(model1)
+
+power_curve_int_30 <- powerCurve(model1, fixed("VISIT:Diagnosis"), along = "ID", breaks = 1:10, nsim = 20)
+plot(power_curve_int_30)
+
+#The same as above but without the breaks, which makes it only look at 10 participants..? 
+power_curve_int_nobreak <- powerCurve(model1, fixed("VISIT:Diagnosis"), along = "ID", nsim = 20)
+plot(power_curve_int_nobreak)
+
+power_curve_vIQ1 <- powerCurve(model1, fixed("vIQ1"), along = "ID", nsim = 20)
+
+
+#TESTING THE POWER OF THE RANDOM EFFECT (DON'T KNOW IF IT'S SLOPE OR INT THOUGH)
+'power_random_intercept <- powerSim(model1, test = random(), nsim = 100)
+power_random_intercept #Maybe the power of the random effect is 0?
+
+power_random_intercept_REML <- powerSim(model1_REML, test = random(), nsim = 100)
+power_random_intercept_REML #Still no effect'
+
+#For excercise 3::
+#Extracting 15 TD and 15 ASD children
+e3data1 <- alldata %>% filter(Diagnosis == "TD", ID < 31)
+e3data2 <- alldata %>% filter(Diagnosis == "ASD", ID < 30)
+#Merging to one dataframe with 15+15 participants
+e3data <- merge(e3data1, e3data2, all = T)
+
 
 ```
