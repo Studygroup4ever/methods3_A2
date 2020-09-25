@@ -266,9 +266,13 @@ df_test_bernie <- CleanUpData(Demo, LU, Word)
 
 
 #extracting Bernie
+
 bernie <- df_test_bernie %>% filter(ID == "Bernie")
+
 #df without Bernie
+
 notbernie <- df_test_bernie %>% filter(ID != "Bernie")
+
 #merging one big dataset without Bernie
 
 bernie_df <- merge(notbernie, df_train, all = T)
@@ -286,6 +290,7 @@ colnames(MLUpervisit)[2] <- "CHI_MLU"
 #extracting relevant columns Bernie
 bernie <- bernie %>% select(ID,CHI_MLU, VISIT)
 
+#merging to one dataframe to be able to compare
 
 comparativeMLU <- rbind(MLUpervisit, bernie)
 
@@ -295,6 +300,10 @@ ggplot(comparativeMLU, aes(x = VISIT, y = CHI_MLU, color = ID))+
   geom_point()+
   geom_smooth(method = lm)+
   ggtitle("Mean length of utterances per visit in TD children versus Bernie")
+
+#general rmse predicition for all visits, just for funs
+berniepredictions <- predict(m, bernie, allow.new.levels = T)
+rmse(bernie$CHI_MLU, berniepredictions)
 
 
 
@@ -321,9 +330,7 @@ bernievisit6 <- bernie %>% filter(VISIT ==6)
 #predicting MLU value for Bernie at visit 6
 predict(m, bernievisit6, allow.new.levels = T)
 
-#general rmse predicition for all visits, just for funs
-berniepredictions <- predict(m, bernie, allow.new.levels = T)
-rmse(bernie$CHI_MLU, berniepredictions)
+
 
 ```
 
