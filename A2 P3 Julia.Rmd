@@ -80,13 +80,20 @@ How would you perform a more conservative power analysis?
 - Report the power analysis and comment on what you can (or cannot) use its estimates for.
 
 ```{r}
-fixef(model1)["DiagnosisTD:VISIT"] <- 
-  
-pc2 <- powerCurve((model1), fixed("Diagnosis:VISIT"), nsim =50, along = "ID")
+fixef(m2)["DiagnosisTD:VISIT"] <- 0.1
+
+m2 <- model1
+
+u <- powerSim(m2, fixed("Diagnosis:VISIT"), nsim=50)
+print(u)
+
+m2 <- extend(m2, along="ID", n=400)
+
+pc2 <- powerCurve((m2), fixed("Diagnosis:VISIT"), nsim =100, along = "ID")
 print(pc2)
 plot(pc2)
 
-model2 <- extend(model1, along="x", n=20)
+
 ```
 
 
@@ -95,5 +102,23 @@ model2 <- extend(model1, along="x", n=20)
 Assume you have only the resources to collect 30 kids (15 with ASD and 15 TDs). Identify the power for each relevant effect and discuss whether it's worth to run the study and why
 
 ```{r}
+
+#Extracting 15 TD and 15 ASD children
+
+e3data1 <- sub_df %>% filter(Diagnosis == "TD", ID < 31)
+e3data2 <- sub_df %>% filter(Diagnosis == "ASD", ID < 30)
+
+#Merging to one dataframe with 15+15 participants
+
+e3data <- merge(e3data1, e3data2, all = T)
+
+#Making a model on the new dataset 
+model3 <- lmer(CHI_MLU~Diagnosis*VISIT + vIQ1 + (1+VISIT|ID), e3data, REML = F)
+summary(model3)
+
+#Powersimulation on the model 
+u <- powerSim(model3, fixed("Diagnosis:VISIT"), nsim=100)
+print(u)
+
 
 ```
