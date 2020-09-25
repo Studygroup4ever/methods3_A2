@@ -65,15 +65,21 @@ If the effect is real, would we have enough power to expect a positive result?
 ```{r}
 
 # What is the current effect size for the interaction? 
+
 fixef(m2)["DiagnosisTD:VISIT"] #0.2517469
 
-power_int <- powerSim(m2, fixed("Diagnosis:VISIT"), nsim = 10)
+power_int <- powerSim((m2), fixed("Diagnosis:VISIT"), nsim = 10) #before it said along = ID in the end
 
 print(power_int) #100%
 
-power_vIQ <- powerSim(m2, fixed("vIQ1"), nsim = 10)
+power_vIQ <- powerSim(m2, fixed("vIQ1"), nsim = 50)
 
 print(power_vIQ) #100%
+
+
+#while (1 == 1){
+#  print("JULIA GET OUT")
+#}
 
 ```
 
@@ -81,6 +87,17 @@ print(power_vIQ) #100%
 
 - Test how many participants you would have to have to replicate the findings (assuming the findings are correct)
 
+```{r}
+# TEST
+pc2 <- powerCurve((m2), fixed("Diagnosis:VISIT"), nsim =50, along = "ID")
+
+print(pc2)
+
+fixef(m2)["DiagnosisTD:VISIT"]
+
+pc2 <- powerCurve(m2,fixed("Diagnosis:VISIT"), nsim = 10)
+
+```
 
 
 N.B. Remember that main effects are tricky once you have interactions in the model (same for 2-way interactions w 3-way interactions in the model). If you want to test the power of main effects, run a model excluding the interactions.
@@ -106,6 +123,52 @@ How would you perform a more conservative power analysis?
 
 ```{r}
 
+# Getting the model first
+m3 <- m2
+
+# DECIDE MINIMUM EFFECT SIZE FOR THE EFFECT WE WANT TO INVESTIGATE
+fixef(m3)["DiagnosisTD:VISIT"] <- 0.1
+
+# HOW POWERFUL IT IS WITH THE CURRENT DATA?
+
+powerSim_m3 <- powerSim(m3, fixed("Diagnosis:VISIT"), nsim = 100)
+print(powerSim_m3)
+
+# HOW MANY PARTICIPANTS WOULD WE NEED TO GET THE POWER WE WANT
+
+pc_m3 <- powerCurve((m3), fixed("Diagnosis:VISIT"), nsim = 10, along = "ID")
+
+
+```
+
+Trying to see how many participants we would need to detect an effect of 0.05
+```{r}
+m_0.05 <- m2
+
+fixef(m_0.05)["DiagnosisTD:VISIT"] <- 0.05
+
+# HOW POWERFUL IS IT WITH THE CURRENT DATA? 
+
+powerSim_m_0.05 <- powerSim(m_0.05, fixed("Diagnosis:VISIT"), nsim = 100)
+
+powerSim_m_0.05 #38%
+
+# HOW MANY PARTICIPANTS WOULD WE NEED TO GET 80% POWER? 
+
+powerCurve_m_0.05 <- powerCurve((m_0.05), fixed("Diagnosis:VISIT"), nsim = 10, along = "ID")
+
+powerCurve_m_0.05
+
+# EXTENDING TO 400
+m_0.05 <- extend(m_0.05, along = "ID", n = 400)
+
+# HOW MANY PARTICIPANTS WOULD WE NEED TO GET 80% POWER? 
+powerCurve_m_0.05_extend <- powerCurve((m_0.05), fixed("Diagnosis:VISIT"), nsim = 50, along = "ID")
+
+powerCurve_m_0.05_extend
+
+plot(powerCurve_m_0.05_extend)
+
 ```
 
 
@@ -114,5 +177,15 @@ How would you perform a more conservative power analysis?
 Assume you have only the resources to collect 30 kids (15 with ASD and 15 TDs). Identify the power for each relevant effect and discuss whether it's worth to run the study and why
 
 ```{r}
+
+sub30 <- merge(
+  (sub30TD <- sub_df %>% 
+  filter(Diagnosis == "TD", ID < 31)),
+  (sub30TD <- sub_df %>% 
+  filter(Diagnosis  == "ASD", ID <31)), all = T)
+
+m_30p <- lmer(CHI_MLU ~ Diagnosis * VISIT + vIQ1 + (1+VISIT|ID), sub30, REML = F)
+
+
 
 ```

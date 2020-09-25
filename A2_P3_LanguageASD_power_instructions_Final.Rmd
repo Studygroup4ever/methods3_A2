@@ -1,0 +1,172 @@
+---
+title: "Assignment 1 - Language Development in ASD - Power and simulations"
+author: "[YOUR NAME]"
+date: "[DATE]"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Welcome to the third exciting part of the Language Development in ASD exercise
+
+In this part of the assignment, we try to figure out how a new study should be planned (i.e. how many participants?) in order to have enough power to replicate the findings (ensuring our sample size is adequate, our alpha at 0.05 and our beta at 0.8):
+1- if we trust the estimates of the current study. Report the power analysis and comment on what you can (or cannot) use its estimates for.
+2- if we are skeptical of the current study. Report the power analysis and comment on what you can (or cannot) use its estimates for.
+3- if we only have access to 30 participants. Identify the power for each relevant effect and discuss whether it's worth to run the study and why
+The list above is also what you should discuss in your code-less report.
+
+
+## Learning objectives
+
+- Learn how to calculate statistical power
+- Critically appraise how to apply frequentist statistical power
+
+### Exercise 1
+
+How much power does your study have (if your model estimates are quite right)?
+- Load your dataset (both training and testing), fit your favorite model, assess power for your effects of interest (probably your interactions).
+- Report the power analysis and comment on what you can (or cannot) use its estimates for.
+- Test how many participants you would have to have to replicate the findings (assuming the findings are correct)
+
+N.B. Remember that main effects are tricky once you have interactions in the model (same for 2-way interactions w 3-way interactions in the model). If you want to test the power of main effects, run a model excluding the interactions.
+N.B. Check this paper: https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.12504
+You will be using:
+- powerSim() to calculate power
+- powerCurve() to estimate the needed number of participants
+- extend() to simulate more participants
+
+```{r}
+# Reading in the training data + test data
+df_train <- read.csv("cleanedData.csv") 
+df_test <- read.csv("cleanedDataTest.csv")
+
+# Adding 66 to the ID column for the test data, so we can merge afterwards
+df_test$ID <- df_test$ID+66
+
+# Merging train + test
+df <- merge(df_train,df_test, all = T)
+
+# Making a subset of the variables we want
+sub_df <- df %>% 
+  dplyr::select(CHI_MLU, Diagnosis, VISIT, vIQ1,ID) %>% 
+  na.omit()
+
+# Fit model 
+m1 <- lmer(CHI_MLU ~
+            Diagnosis * VISIT + vIQ1 + 
+            (1 + VISIT | ID), 
+          sub_df, REML = F)
+
+# Summary of model
+summary(m1)
+```
+
+1st interesting effect: the interaction term
+```{r}
+
+# The estimate (effect size)
+fixef(m1)["DiagnosisTD:VISIT"] 
+
+# Assessing power 
+power_int <- powerSim((m1), fixed("Diagnosis:VISIT"), nsim = 1000)
+
+print(power_int)
+
+# Testing how many participants are required to replicate the findings
+pc1 <- powerCurve((m1), fixed("Diagnosis:VISIT"), nsim = 100)
+
+print(pc1)
+
+plot(pc1)
+
+```
+
+2nd interesting effect: verbal IQ
+```{r}
+
+# The estimate (effect size)
+fixef(m1)["vIQ1"] 
+
+# Assessing power 
+power_vIQ <- powerSim((m1), fixed("vIQ1"), nsim = 1000)
+
+print(power_vIQ)
+
+# Testing how many participants are required to replicate the findings
+pc1_v <- powerCurve((m1), fixed("vIQ1"), nsim = 100)
+
+print(pc1_v)
+
+plot(pc1_v)
+
+```
+
+### Exercise 2
+
+How would you perform a more conservative power analysis?
+- Identify and justify a minimum effect size for each of your relevant effects
+- take the model from exercise 1 and replace the effects with the minimum effect size that you'd accept.
+- assess the power curve by Child.ID, identifying an ideal number of participants to estimate each effect
+- if your power estimates do not reach an acceptable threshold simulate additional participants and repeat the previous analysis
+- Report the power analysis and comment on what you can (or cannot) use its estimates for.
+
+```{r}
+
+# Get the model first
+m2 <- m1
+
+# Assigning minimum effect size we want to examine for the interaction term
+fixef(m2)["DiagnosisTD:VISIT"] <- 0.125
+
+# Assessing power for the new interaction term
+power_int_new <- powerSim((m2), fixed("Diagnosis:VISIT"), nsim = 1000)
+
+print(power_int_new)
+
+# Testing how many participants are required to replicate the findings
+pc2 <- powerCurve((m2), fixed("Diagnosis:VISIT"), nsim = 100, along = "ID")
+
+print(pc2)
+
+plot(pc2)
+
+
+```
+
+
+### Exercise 3
+
+Assume you have only the resources to collect 30 kids (15 with ASD and 15 TDs). Identify the power for each relevant effect and discuss whether it's worth to run the study and why
+
+```{r}
+
+# Contrasting method: Making a subset of 15 ASD + 15 TD children
+sub30 <- merge(
+  
+  (TD <- sub_df %>%
+     filter(Diagnosis == "TD", ID < 31)),
+  
+  (ASD <- sub_df %>%
+     filter(Diagnosis  == "ASD", ID < 31)),
+              
+  all = T)
+
+# Fitting a model for the 30 p. subset
+m_30p <- lmer(CHI_MLU ~ 
+         Diagnosis * VISIT + vIQ1 + 
+         (1 + VISIT | ID), sub30, REML = F)
+
+# Assessing power
+power_int_30 <- powerSim((m_30p), fixed("Diagnosis:VISIT"), nsim = 1000)
+
+# Testing how many participants are required to replicate the findings here
+pc3 <- powerCurve((m_30p), fixed("Diagnosis:VISIT"), nsim = 100, along = "ID")
+
+print(pc3)
+
+plot(pc3)
+
+
+```
