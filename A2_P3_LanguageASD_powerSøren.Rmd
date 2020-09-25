@@ -5,9 +5,7 @@ date: "[DATE]"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+
 
 ## Welcome to the third exciting part of the Language Development in ASD exercise
 
@@ -16,6 +14,25 @@ In this part of the assignment, we try to figure out how a new study should be p
 2- if we are skeptical of the current study. Report the power analysis and comment on what you can (or cannot) use its estimates for.
 3- if we only have access to 30 participants. Identify the power for each relevant effect and discuss whether it's worth to run the study and why
 The list above is also what you should discuss in your code-less report.
+
+```{r}
+library(pacman)
+
+p_load(lme4, tidyverse, simr, merMod)
+
+```
+
+
+```{r}
+df_train <- read.csv('cleanedData.csv')
+
+df_test <-  read.csv('cleanedDataTest.csv')
+
+df_test$ID <- df_test$ID + 66
+
+df <- merge(df_train, df_test, all = T)
+
+```
 
 
 ## Learning objectives
@@ -30,6 +47,37 @@ How much power does your study have (if your model estimates are quite right)?
 - Report the power analysis and comment on what you can (or cannot) use its estimates for.
 - Test how many participants you would have to have to replicate the findings (assuming the findings are correct)
 
+
+```{r}
+sub_df <- df %>% 
+  dplyr::select(CHI_MLU, Diagnosis, VISIT, vIQ1, ID) %>% 
+  na.omit()
+
+model1 <- lmer(CHI_MLU ~ 
+                 VISIT * Diagnosis + 
+                 vIQ1 + 
+                 (1 + VISIT | ID), sub_df, REML = F)
+
+simr::powerSim(model1, fixed("VISIT:Diagnosis"), nsim = 10)
+
+simr::powerSim(model1, fixed("vIQ1"), nsim = 10)
+
+```
+
+
+
+```{r}
+pc1 <- powerCurve((model1), fixed("VISIT:Diagnosis"), nsim =10, along = "ID")
+pc1
+plot(pc1)
+
+pc3 <- powerCurve((model1), fixed("vIQ1"), along = "ID")
+pc3
+plot(pc3)
+
+```
+
+
 N.B. Remember that main effects are tricky once you have interactions in the model (same for 2-way interactions w 3-way interactions in the model). If you want to test the power of main effects, run a model excluding the interactions.
 N.B. Check this paper: https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.12504
 You will be using:
@@ -38,6 +86,13 @@ You will be using:
 - extend() to simulate more participants
 
 ```{r}
+model2 <- extend(model1, along = "ID", n = 200)
+
+fixef(model2)["VISIT:DiagnosisTD"] <- 0.125
+
+pc2 <- powerCurve((model2), fixed("VISIT:Diagnosis"), nsim =100, along = "ID")
+pc2
+plot(pc2)
 
 ```
 
@@ -58,8 +113,33 @@ How would you perform a more conservative power analysis?
 
 ### Exercise 3
 
-Assume you have only the resources to collect 30 kids (15 with ASD and 15 TDs). Identify the power for each relevant effect and discuss whether it's worth to run the study and why
+Assume you have only the resources to collect 30 kids (15 with ASD and 15 TD). Identify the power for each relevant effect and discuss whether it's worth to run the study and why
 
 ```{r}
 
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

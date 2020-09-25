@@ -38,6 +38,34 @@ You will be using:
 - extend() to simulate more participants
 
 ```{r}
+data1 <- read.csv("cleanedData.csv")
+
+data2 <- read.csv("cleanedDataTest.csv")
+data2$ID <- data2$ID+66
+data <- merge(data1, data2, all =T)
+
+pacman::p_load(simr, lme4)
+library(dplyr)
+library(simr)
+
+sub_df_uq <- datauq %>% 
+  dplyr::select(ID, CHI_MLU, Diagnosis,VISIT,vIQ1) %>% na.omit()
+
+model1 <- lmer(CHI_MLU~Diagnosis*VISIT + vIQ1 + (1+VISIT|ID), sub_df, REML = F)
+
+fixef(model1)["DiagnosisTD:VISIT"] <- 0.251747
+summary(model1)
+
+datauq <- data %>% filter(VISIT ==1)
+  
+t <- powerSim(model1, fixed("Diagnosis:VISIT"), nsim=5)
+print(t)
+
+
+
+pc1 <- powerCurve((model1), fixed("Diagnosis:VISIT"), nsim =10, along = "ID")
+print(pc1)
+plot(pc1)
 
 ```
 
@@ -53,6 +81,20 @@ How would you perform a more conservative power analysis?
 
 ```{r}
 
+
+m2 <- model1
+
+fixef(m2)["DiagnosisTD:VISIT"] <- 0.1
+
+u <- powerSim(m2, fixed("Diagnosis:VISIT"))
+print(u)
+
+
+pc2 <- powerCurve((m2), fixed("Diagnosis:VISIT"), nsim =100, along = "ID")
+print(pc2)
+plot(pc2)
+
+
 ```
 
 
@@ -61,5 +103,27 @@ How would you perform a more conservative power analysis?
 Assume you have only the resources to collect 30 kids (15 with ASD and 15 TDs). Identify the power for each relevant effect and discuss whether it's worth to run the study and why
 
 ```{r}
+
+#Extracting 15 TD and 15 ASD children
+
+e3data1 <- sub_df %>% filter(Diagnosis == "TD", ID < 31)
+e3data2 <- sub_df %>% filter(Diagnosis == "ASD", ID < 30)
+
+#Merging to one dataframe with 15+15 participants
+
+e3data <- merge(e3data1, e3data2, all = T)
+
+#Making a model on the new dataset 
+model3 <- lmer(CHI_MLU~Diagnosis*VISIT + vIQ1 + (1+VISIT|ID), e3data, REML = F)
+summary(model3)
+
+#Powersimulation on the model 
+u <- powerSim(model3, fixed("Diagnosis:VISIT"), nsim=100)
+print(u)
+
+pc3 <- powerCurve((model3), fixed("Diagnosis:VISIT"), nsim =100, along = "ID")
+print(pc3)
+plot(pc3)
+
 
 ```
