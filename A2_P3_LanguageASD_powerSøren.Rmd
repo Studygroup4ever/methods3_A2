@@ -5,9 +5,7 @@ date: "[DATE]"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+
 
 ## Welcome to the third exciting part of the Language Development in ASD exercise
 
@@ -16,6 +14,24 @@ In this part of the assignment, we try to figure out how a new study should be p
 2- if we are skeptical of the current study. Report the power analysis and comment on what you can (or cannot) use its estimates for.
 3- if we only have access to 30 participants. Identify the power for each relevant effect and discuss whether it's worth to run the study and why
 The list above is also what you should discuss in your code-less report.
+
+```{r}
+library(withr)
+
+p_load(simr, lme4, tidyverse)
+```
+
+
+```{r}
+df_train <- read.csv('cleanedData.csv')
+
+df_test <-  read.csv('cleanedDataTest.csv')
+
+df_test$ID <- df_test$ID + 66
+
+df <- merge(df_train, df_test, all = T)
+
+```
 
 
 ## Learning objectives
@@ -29,6 +45,28 @@ How much power does your study have (if your model estimates are quite right)?
 - Load your dataset (both training and testing), fit your favorite model, assess power for your effects of interest (probably your interactions).
 - Report the power analysis and comment on what you can (or cannot) use its estimates for.
 - Test how many participants you would have to have to replicate the findings (assuming the findings are correct)
+
+```{r}
+sub_df <- df %>% 
+  dplyr::select(CHI_MLU, Diagnosis, VISIT, vIQ1,ID) %>% 
+  na.omit()
+
+m <- lmer(CHI_MLU ~
+            Diagnosis * VISIT + vIQ1 +
+            (1 + VISIT | ID),
+          sub_df, REML = F)
+
+fixef(m)["DiagnosisTD:VISIT"] #0.2517469
+
+power_int <- simr::powerSim(m, fixed("Diagnosis:VISIT"), nsim = 10)
+
+power_int #100%
+
+power_vIQ <- powerSim(m, fixed("vIQ1"), nsim = 10)
+
+power_vIQ #100%
+```
+
 
 N.B. Remember that main effects are tricky once you have interactions in the model (same for 2-way interactions w 3-way interactions in the model). If you want to test the power of main effects, run a model excluding the interactions.
 N.B. Check this paper: https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.12504
