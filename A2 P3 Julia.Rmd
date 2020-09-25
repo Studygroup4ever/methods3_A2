@@ -80,14 +80,15 @@ How would you perform a more conservative power analysis?
 - Report the power analysis and comment on what you can (or cannot) use its estimates for.
 
 ```{r}
-fixef(m2)["DiagnosisTD:VISIT"] <- 0.1
+
 
 m2 <- model1
 
-u <- powerSim(m2, fixed("Diagnosis:VISIT"), nsim=50)
+fixef(m2)["DiagnosisTD:VISIT"] <- 0.1
+
+u <- powerSim(m2, fixed("Diagnosis:VISIT"))
 print(u)
 
-m2 <- extend(m2, along="ID", n=400)
 
 pc2 <- powerCurve((m2), fixed("Diagnosis:VISIT"), nsim =100, along = "ID")
 print(pc2)
@@ -119,6 +120,10 @@ summary(model3)
 #Powersimulation on the model 
 u <- powerSim(model3, fixed("Diagnosis:VISIT"), nsim=100)
 print(u)
+
+pc3 <- powerCurve((model3), fixed("Diagnosis:VISIT"), nsim =100, along = "ID")
+print(pc3)
+plot(pc3)
 
 
 ```
