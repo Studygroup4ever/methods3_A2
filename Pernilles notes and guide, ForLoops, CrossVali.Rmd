@@ -152,7 +152,7 @@ Now we want some new data. We made a function to clean it up, so we just apply t
 ```{r}
 
 df <- CleanUpData(Demo, LU, Word)
-
+write.csv(df,file = "cleanedDataTest.csv")
 nrow(df)
 
 ```

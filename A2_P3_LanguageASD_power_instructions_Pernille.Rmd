@@ -123,7 +123,7 @@ How would you perform a more conservative power analysis?
 
 ```{r}
 
-# Getting the model first
+# Reder the model first
 m3 <- m2
 
 # DECIDE MINIMUM EFFECT SIZE FOR THE EFFECT WE WANT TO INVESTIGATE
@@ -170,6 +170,12 @@ powerCurve_m_0.05_extend
 plot(powerCurve_m_0.05_extend)
 
 ```
+want the power estimation to be more conservative - underestimate- we want it not to be exactly 80% 
+uncertainty interval
+
+We design the study and estimate higher - 
+setting the estimate lower, for it to demand more participants required so that we do not undershoot in terms of sample size
+
 
 
 ### Exercise 3
@@ -181,11 +187,15 @@ Assume you have only the resources to collect 30 kids (15 with ASD and 15 TDs). 
 sub30 <- merge(
   (sub30TD <- sub_df %>% 
   filter(Diagnosis == "TD", ID < 31)),
-  (sub30TD <- sub_df %>% 
+  (sub30ASD <- sub_df %>% 
   filter(Diagnosis  == "ASD", ID <31)), all = T)
 
 m_30p <- lmer(CHI_MLU ~ Diagnosis * VISIT + vIQ1 + (1+VISIT|ID), sub30, REML = F)
 
 
+powerSim_m_30p <- powerSim((m_30p), fixed("Diagnosis:VISIT"), nsim = 100)
 
+powerSim_m_30p
+
+# 
 ```
