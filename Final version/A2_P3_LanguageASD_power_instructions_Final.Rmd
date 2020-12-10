@@ -17,6 +17,10 @@ In this part of the assignment, we try to figure out how a new study should be p
 3- if we only have access to 30 participants. Identify the power for each relevant effect and discuss whether it's worth to run the study and why
 The list above is also what you should discuss in your code-less report.
 
+```{r}
+pacman::p_load(tidyverse,lme4,simr)
+```
+
 
 ## Learning objectives
 
@@ -70,12 +74,12 @@ summary(m1)
 fixef(m1)["DiagnosisTD:VISIT"] 
 
 # Assessing power 
-power_int <- powerSim((m1), fixed("Diagnosis:VISIT"), nsim = 1000)
+power_int <- powerSim((m1), fixed("Diagnosis:VISIT"), nsim = 100)
 
 print(power_int)
 
 # Testing how many participants are required to replicate the findings
-pc1 <- powerCurve((m1), fixed("Diagnosis:VISIT"), nsim = 100)
+pc1 <- powerCurve((m1), fixed("Diagnosis:VISIT"), nsim = 100, along = "ID")
 
 print(pc1)
 
@@ -87,15 +91,15 @@ plot(pc1)
 ```{r}
 
 # The estimate (effect size)
-fixef(m1)["vIQ1"] 
+fixef(m1)["vIQ1"]
 
 # Assessing power 
-power_vIQ <- powerSim((m1), fixed("vIQ1"), nsim = 1000)
+power_vIQ <- powerSim((m1), fixed("vIQ1"), nsim = 100)
 
 print(power_vIQ)
 
 # Testing how many participants are required to replicate the findings
-pc1_v <- powerCurve((m1), fixed("vIQ1"), nsim = 100)
+pc1_v <- powerCurve((m1), fixed("vIQ1"), nsim = 100, along = "ID")
 
 print(pc1_v)
 
@@ -121,7 +125,7 @@ m2 <- m1
 fixef(m2)["DiagnosisTD:VISIT"] <- 0.125
 
 # Assessing power for the new interaction term
-power_int_new <- powerSim((m2), fixed("Diagnosis:VISIT"), nsim = 1000)
+power_int_new <- powerSim((m2), fixed("Diagnosis:VISIT"), nsim = 100)
 
 print(power_int_new)
 
@@ -159,7 +163,9 @@ m_30p <- lmer(CHI_MLU ~
          (1 + VISIT | ID), sub30, REML = F)
 
 # Assessing power
-power_int_30 <- powerSim((m_30p), fixed("Diagnosis:VISIT"), nsim = 1000)
+power_int_30 <- powerSim((m_30p), fixed("Diagnosis:VISIT"), nsim = 100)
+
+print(power_int_30)
 
 # Testing how many participants are required to replicate the findings here
 pc3 <- powerCurve((m_30p), fixed("Diagnosis:VISIT"), nsim = 100, along = "ID")
