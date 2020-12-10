@@ -1,6 +1,6 @@
 ---
 title: "Assignment 2 - Language Development in ASD - Making predictions"
-author: "Søren Orm Hansen"
+author: "Study Group 11"
 date: "September, 2020"
 output:
   pdf_document: default
@@ -45,6 +45,11 @@ How did your models from last time perform? In this exercise you have to compare
 - create the test dataset (apply the code from assignment 1 to clean up the 3 test datasets)
 - test the performance of the models on the test data (Tips: google the functions "predict()")
 - optional: predictions are never certain, can you identify the uncertainty of the predictions? (e.g. google predictinterval())
+
+
+# This part of the code was written by SOH
+
+
 ```{r}
 # Loading packages
 library(pacman)
@@ -150,6 +155,9 @@ rmse_gcm <- rmse(sub_df_train$CHI_MLU, sub_df_train$pred_CHI_MLU_gcm) # rmse = 0
 
 ```
 
+# This part of the code was writte by JJ
+
+
 ```{r}
 #- create the test dataset (apply the code from assignment 1 or my function to clean up the 3 test datasets)
 # Test data
@@ -204,6 +212,7 @@ In this exercise you have to use cross-validation to calculate the predictive er
 - Bonus Question 1: What is the effect of changing the number of folds? Can you plot RMSE as a function of number of folds?
 - Bonus Question 2: compare the cross-validated predictive error against the actual predictive error on the test data
 
+# This part of the code was written by KK
 
 ```{r}
 #- Create the basic model of ChildMLU as a function of Time and Diagnosis (don't forget the random effects!).
@@ -276,6 +285,8 @@ colnames(obj)[5] <- 'DiffTrainTest'
 # creating a place holder for the mean scores for looping through the folding function 20 times
 m_scores <- matrix(0, ncol = 20, nrow = 1) %>% data.frame()
 ```
+
+# This part of the code was writte by CP
 
 ```{r}
 # Now try to find the best possible predictive model of ChildMLU, that is, the one that produces the best cross-validated results.
@@ -356,6 +367,8 @@ You want to evaluate:
 - how does the child fare in ChildMLU compared to the average TD child at each visit? Define the distance in terms of absolute difference between this Child and the average TD.
 
 - how does the child fare compared to the model predictions at Visit 6? Is the child below or above expectations? (tip: use the predict() function on Bernie's data only and compare the prediction with the actual performance of the child)
+
+# This part of the code was writte by PB
 
 ```{r}
 
