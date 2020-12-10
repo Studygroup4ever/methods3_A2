@@ -1,6 +1,6 @@
 ---
-title: "Assignment 1 - Language Development in ASD - Power and simulations"
-author: "[YOUR NAME]"
+title: "Assignment 2 - Part 3"
+author: "Study Group 11"
 date: "[DATE]"
 output: html_document
 ---
@@ -37,6 +37,8 @@ You will be using:
 - powerCurve() to estimate the needed number of participants
 - extend() to simulate more participants
 
+# This part of the code was written by KK
+
 ```{r}
 # Reading in the training data + test data
 df_train <- read.csv("cleanedData.csv") 
@@ -63,6 +65,8 @@ m1 <- lmer(CHI_MLU ~
 summary(m1)
 ```
 
+# This part of the code was writte by JJ
+
 1st interesting effect: the interaction term
 ```{r}
 
@@ -82,6 +86,8 @@ print(pc1)
 plot(pc1)
 
 ```
+
+# This part of the code was writte by PB
 
 2nd interesting effect: verbal IQ
 ```{r}
@@ -112,6 +118,8 @@ How would you perform a more conservative power analysis?
 - if your power estimates do not reach an acceptable threshold simulate additional participants and repeat the previous analysis
 - Report the power analysis and comment on what you can (or cannot) use its estimates for.
 
+# This part of the code was written by CP
+
 ```{r}
 
 # Get the model first
@@ -137,6 +145,8 @@ plot(pc2)
 
 
 ### Exercise 3
+
+# This part of the code was writte bt SOH
 
 Assume you have only the resources to collect 30 kids (15 with ASD and 15 TDs). Identify the power for each relevant effect and discuss whether it's worth to run the study and why
 
